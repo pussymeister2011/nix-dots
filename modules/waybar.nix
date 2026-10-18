@@ -71,10 +71,11 @@
       }
 
       window#waybar {
-        background-color: rgba(26, 35, 30, 0.75); 
+        background-color: #BF1A231E; 
         color: #e1e8e2;                            
         border-bottom: 2px solid #879a72;          
       }
+
 
       #workspaces button {
         padding: 0 8px;
