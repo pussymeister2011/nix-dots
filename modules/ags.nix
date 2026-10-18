@@ -375,7 +375,7 @@ in
       { name = "tsconfig.json"; path = pkgs.writeText "tsconfig.json" tsconfig; }
     ];
 
-    extraPackages = with inputs.ags.packages.${pkgs.system}; [
+    extraPackages = with inputs.ags.packages.${pkgs.stdenv.hostPlatform.system}; [
       network
       wireplumber
       bluetooth
