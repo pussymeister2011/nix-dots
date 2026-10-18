@@ -6,7 +6,7 @@
     pkgs.wireplumber
   ];
 
-  # --- FIXED JAVASCRIPT ESCAPING FOR NIX INTERPOLATION ---
+  # --- COMPILING THE NATIVE AGS V2 JAVASCRIPT ---
   xdg.configFile."ags/app.js".text = ''
     import App from 'resource:///com/github/Aylur/ags/app.js';
     import Widget from 'resource:///com/github/Aylur/ags/widget.js';
