@@ -6,7 +6,7 @@
     pkgs.wireplumber
   ];
 
-  # --- FULLY REWRITTEN NATIVE AGS V2 ENTERPOINT ---
+  # --- FIXED JAVASCRIPT ESCAPING FOR NIX INTERPOLATION ---
   xdg.configFile."ags/app.js".text = ''
     import App from 'resource:///com/github/Aylur/ags/app.js';
     import Widget from 'resource:///com/github/Aylur/ags/widget.js';
@@ -35,7 +35,7 @@
                         onClicked: () => Audio.speaker.isMuted = !Audio.speaker.isMuted,
                         child: Widget.Label({
                             setup: self => self.hook(Audio, label => {
-                                label.label = Audio.speaker.isMuted ? "vol mute" : `vol \${Math.round(Audio.speaker.volume * 100)}%`;
+                                label.label = Audio.speaker.isMuted ? "vol mute" : `vol ''${Math.round(Audio.speaker.volume * 100)}%`;
                             })
                         })
                     }),
@@ -68,7 +68,7 @@
             }),
             Widget.Label({
                 setup: self => self.hook(Network, label => {
-                    label.label = Network.wifi.ssid ? `Connected: \${Network.wifi.ssid}` : "Disconnected";
+                    label.label = Network.wifi.ssid ? `Connected: ''${Network.wifi.ssid}` : "Disconnected";
                 })
             })
         ]
@@ -124,7 +124,7 @@
                         onClicked: () => App.toggleWindow('wifi-menu'),
                         child: Widget.Label({
                             setup: self => self.hook(Network, label => {
-                                label.label = Network.wifi.ssid ? `wifi \${Network.wifi.ssid}` : "wifi none";
+                                label.label = Network.wifi.ssid ? `wifi ''${Network.wifi.ssid}` : "wifi none";
                             })
                         })
                     }),
@@ -132,7 +132,7 @@
                         onClicked: () => App.toggleWindow('bt-menu'),
                         child: Widget.Label({
                             setup: self => self.hook(Bluetooth, label => {
-                                label.label = Bluetooth.enabled ? `bt \${Bluetooth.connectedDevices.length}` : "bt off";
+                                label.label = Bluetooth.enabled ? `bt ''${Bluetooth.connectedDevices.length}` : "bt off";
                             })
                         })
                     }),
@@ -140,7 +140,7 @@
                         onClicked: () => App.toggleWindow('audio-menu'),
                         child: Widget.Label({
                             setup: self => self.hook(Audio, label => {
-                                label.label = Audio.speaker.isMuted ? "vol mute" : `vol \${Math.round(Audio.speaker.volume * 100)}%`;
+                                label.label = Audio.speaker.isMuted ? "vol mute" : `vol ''${Math.round(Audio.speaker.volume * 100)}%`;
                             })
                         })
                     }),
@@ -151,7 +151,7 @@
                     }),
                     Widget.Label({
                         setup: self => self.hook(Battery, label => {
-                            label.label = `bat \${Battery.percent}%`;
+                            label.label = `bat ''${Battery.percent}%`;
                         })
                     })
                 ]
@@ -159,7 +159,6 @@
         ])
     });
 
-    // --- ACCORDING TO AGS V2 STANDARDS (ONACTIVATE MANDATORY) ---
     App.config({
         style: App.configDir + '/style.css',
         onActivate: () => {
