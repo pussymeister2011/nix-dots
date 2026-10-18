@@ -100,6 +100,7 @@
     xwayland-satellite
     pavucontrol
     brightnessctl
+    gh
   ];
 
 
