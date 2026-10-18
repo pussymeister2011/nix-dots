@@ -32,15 +32,16 @@
     pulse.enable = true;
   };
 
-  services.displayManager.sessionPackages = [ pkgs.niri ];
   services.displayManager.sddm = {
     enable = true;
-    wayland.enable = true;
-    settings = {
-      Theme = {
-        CursorTheme = "breeze_cursors";
-      };
-    };
+    theme = "pixie";            
+    wayland.enable = true;      
+    package = pkgs.kdePackages.sddm; 
+    extraPackages = [
+      pkgs.kdePackages.qtsvg
+      pkgs.kdePackages.qtdeclarative
+      pkgs.kdePackages.qt5compat
+    ];
   };
 
   services.xserver.xkb = {
@@ -78,6 +79,15 @@
     micro
     wget
     git
+    (inputs.pixie-sddm.packages.${pkgs.stdenv.hostPlatform.system}.pixie-sddm.override {
+      background = "/home/vakh/Pictures/wallpaper.jpg"; 
+      
+      autoColor = false;    
+      backgroundColor = "#1a231e";
+      accentColor = "#a9b665";    
+      textColor = "#e1e8e2";      
+      fontFamily = "JetBrains Mono";
+    })
   ];
 
   fonts.packages = with pkgs; [

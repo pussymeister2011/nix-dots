@@ -5,9 +5,10 @@
 			url = "github:nix-community/home-manager";
 			inputs.nixpkgs.follows = "nixpkgs";
 		};	
+		pixie-sddm.url = "github:xCaptaiN09/pixie-sddm"; 
 	};
 
-	outputs = { self, nixpkgs, home-manager, ... }@inputs: {
+	outputs = { self, nixpkgs, home-manager, pixie-sddm, ... }@inputs: {
 		nixosConfigurations.vakh = nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
 			specialArgs = { inherit inputs; };
