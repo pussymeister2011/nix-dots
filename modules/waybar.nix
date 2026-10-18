@@ -71,10 +71,12 @@
       }
 
       window#waybar {
-        background-color: #BF1A231E; 
+        background-color: #1a231e; 
+        opacity: 0.75;
         color: #e1e8e2;                            
         border-bottom: 2px solid #879a72;          
       }
+
 
 
       #workspaces button {
