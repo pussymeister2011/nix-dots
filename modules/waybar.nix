@@ -11,7 +11,7 @@
         
         modules-left = [ "niri/workspaces" "niri/window" ];
         modules-center = [ "clock" ];
-        modules-right = [ "network" "pulseaudio" "memory" "cpu" "battery" "tray" ];
+        modules-right = [ "custom/wifi" "custom/volume" "memory" "cpu" "battery" "tray" ];
 
         "niri/workspaces" = {
           format = "{index}";
@@ -27,28 +27,20 @@
         };
 
         # --- NETWORK CONFIG ---
-        "network" = {
-          interface = "wlan0";
-          format-wifi = "wifi {essid}";
-          format-disconnected = "wifi none";
-          menu = "on-click";
-          menu-file = "/home/vakh/.config/waybar/network_menu.xml";
-          menu-actions = {
-            "toggle" = "${pkgs.networkmanager}/bin/nmcli radio wifi toggle";
-            "connections" = "${pkgs.networkmanager_dmenu}/bin/networkmanager_dmenu";
-          };
+        "custom/wifi" = {
+          exec = "${pkgs.networkmanager}/bin/nmcli -t -f ACTIVE,SSID dev wifi | ${pkgs.gnugrep}/bin/grep '^yes:' | ${pkgs.coreutils}/bin/cut -d ':' -f2 | ${pkgs.gawk}/bin/awk '{print \"wifi \" $0}' || echo \"wifi none\"";
+          interval = 5;
+          format = "{}";
+          on-click = "${pkgs.networkmanager_dmenu}/bin/networkmanager_dmenu";
         };
 
         # --- AUDIO CONFIG ---
-        "pulseaudio" = {
-          format = "vol {volume}%";
-          format-muted = "vol mute";
-          menu = "on-click";
-          menu-file = "/home/vakh/.config/waybar/audio_menu.xml";
-          menu-actions = {
-            "mute" = "${pkgs.wireplumber}/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
-            "mixer" = "${pkgs.pwvucontrol}/bin/pwvucontrol";
-          };
+        "custom/volume" = {
+          exec = "${pkgs.wireplumber}/bin/wpctl get-volume @DEFAULT_AUDIO_SINK@ | ${pkgs.gawk}/bin/awk '{print \"vol \" $2*100 \"%\"}'";
+          interval = 1;
+          format = "{}";
+          on-click = "${pkgs.pwvucontrol}/bin/pwvucontrol";
+          on-click-right = "${pkgs.wireplumber}/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
           on-scroll-up = "${pkgs.wireplumber}/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.05+";
           on-scroll-down = "${pkgs.wireplumber}/bin/wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.05-";
         };
@@ -88,58 +80,10 @@
         border-bottom: 2px solid #a9b665;
       }
 
-      #network { color: #a9b665; }
-      #pulseaudio { color: #e1e8e2; }
+      #custom-wifi { color: #a9b665; padding: 0 12px; }
+      #custom-volume { color: #e1e8e2; padding: 0 12px; }
       #cpu, #memory { color: #d8a657; }
       #clock, #battery, #window, #tray { padding: 0 12px; color: #e1e8e2; }
-
-      /* GTK Compliant Dropdown Menu Engine Styling */
-      menu {
-        background-color: #1a231e;
-        border: 2px solid #879a72;
-        padding: 6px;
-      }
-      menu menuitem {
-        color: #e1e8e2;
-        padding: 4px 12px;
-      }
-      menu menuitem:hover {
-        background-color: #2d3b32;
-        color: #a9b665;
-      }
     '';
   };
-
-  # --- XML DROPDOWN GENERATORS ---
-  xdg.configFile."waybar/network_menu.xml".text = ''
-    <?xml version="1.0" encoding="UTF-8"?>
-    <interface>
-      <menu id="menu">
-        <item>
-          <attribute name="label">Toggle Wi-Fi Power</attribute>
-          <attribute name="action">toggle</attribute>
-        </item>
-        <item>
-          <attribute name="label">Select Wi-Fi Networks (Fuzzel)</attribute>
-          <attribute name="action">connections</attribute>
-        </item>
-      </menu>
-    </interface>
-  '';
-
-  xdg.configFile."waybar/audio_menu.xml".text = ''
-    <?xml version="1.0" encoding="UTF-8"?>
-    <interface>
-      <menu id="menu">
-        <item>
-          <attribute name="label">Toggle Mute State</attribute>
-          <attribute name="action">mute</attribute>
-        </item>
-        <item>
-          <attribute name="label">Open Advanced Mix Panel (GUI)</attribute>
-          <attribute name="action">mixer</attribute>
-        </item>
-      </menu>
-    </interface>
-  '';
 }
