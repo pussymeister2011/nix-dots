@@ -374,7 +374,7 @@ in
       cp ${pkgs.writeText "app.tsx" appTsx} $out/app.tsx
       cp ${pkgs.writeText "style.scss" styleScss} $out/style.scss
       cp ${pkgs.writeText "tsconfig.json" tsconfig} $out/tsconfig.json
-      ln -s ${inputs.astal.packages.${pkgs.stdenv.hostPlatform.system}.gjs}/share/astal/gjs $out/node_modules/astal
+      ln -s ${inputs.astal}/lang/gjs $out/node_modules/astal
     '';
 
     extraPackages = with inputs.ags.packages.${pkgs.stdenv.hostPlatform.system}; [
