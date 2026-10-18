@@ -6,7 +6,7 @@
     pkgs.wireplumber
   ];
 
-  # --- COMPILING THE NATIVE AGS V2 JAVASCRIPT ---
+  # --- FULLY REWRITTEN NATIVE AGS V2 ENTERPOINT ---
   xdg.configFile."ags/app.js".text = ''
     import App from 'resource:///com/github/Aylur/ags/app.js';
     import Widget from 'resource:///com/github/Aylur/ags/widget.js';
@@ -16,7 +16,6 @@
     import Bluetooth from 'resource:///com/github/Aylur/ags/service/bluetooth.js';
     import Battery from 'resource:///com/github/Aylur/ags/service/battery.js';
 
-    // --- SYSTEM TIME INDICATOR ---
     const Clock = () => Widget.Label({
         className: 'clock',
         setup: self => self.poll(1000, label => {
@@ -25,7 +24,6 @@
         })
     });
 
-    // --- NATIVE AUDIO DROPDOWN MIXER ---
     const AudioMenu = () => Widget.Box({
         vertical: true,
         className: 'dropdown-card',
@@ -37,7 +35,7 @@
                         onClicked: () => Audio.speaker.isMuted = !Audio.speaker.isMuted,
                         child: Widget.Label({
                             setup: self => self.hook(Audio, label => {
-                                label.label = Audio.speaker.isMuted ? "vol mute" : `vol ''${Math.round(Audio.speaker.volume * 100)}%`;
+                                label.label = Audio.speaker.isMuted ? "vol mute" : `vol \${Math.round(Audio.speaker.volume * 100)}%`;
                             })
                         })
                     }),
@@ -54,7 +52,6 @@
         ]
     });
 
-    // --- NATIVE WI-FI DROPDOWN CONTROL ---
     const WifiMenu = () => Widget.Box({
         vertical: true,
         className: 'dropdown-card',
@@ -71,13 +68,12 @@
             }),
             Widget.Label({
                 setup: self => self.hook(Network, label => {
-                    label.label = Network.wifi.ssid ? `Connected: ''${Network.wifi.ssid}` : "Disconnected";
+                    label.label = Network.wifi.ssid ? `Connected: \${Network.wifi.ssid}` : "Disconnected";
                 })
             })
         ]
     });
 
-    // --- NATIVE BLUETOOTH DROPDOWN CONTROL ---
     const BluetoothMenu = () => Widget.Box({
         vertical: true,
         className: 'dropdown-card',
@@ -95,9 +91,8 @@
         ]
     });
 
-    // --- GENERIC WINDOW OVERLAY MECHANICS ---
     const PopupWindow = (name, content) => Widget.Window({
-        name,
+        name: name,
         popup: true,
         visible: false,
         focusable: true,
@@ -109,7 +104,6 @@
     const wifiPopup = PopupWindow('wifi-menu', WifiMenu());
     const btPopup = PopupWindow('bt-menu', BluetoothMenu());
 
-    // --- MAIN STATUS BAR LAYER ---
     const Bar = () => Widget.Window({
         name: 'bar',
         anchor: ['top', 'left', 'right'],
@@ -130,7 +124,7 @@
                         onClicked: () => App.toggleWindow('wifi-menu'),
                         child: Widget.Label({
                             setup: self => self.hook(Network, label => {
-                                label.label = Network.wifi.ssid ? `wifi ''${Network.wifi.ssid}` : "wifi none";
+                                label.label = Network.wifi.ssid ? `wifi \${Network.wifi.ssid}` : "wifi none";
                             })
                         })
                     }),
@@ -138,7 +132,7 @@
                         onClicked: () => App.toggleWindow('bt-menu'),
                         child: Widget.Label({
                             setup: self => self.hook(Bluetooth, label => {
-                                label.label = Bluetooth.enabled ? `bt ''${Bluetooth.connectedDevices.length}` : "bt off";
+                                label.label = Bluetooth.enabled ? `bt \${Bluetooth.connectedDevices.length}` : "bt off";
                             })
                         })
                     }),
@@ -146,7 +140,7 @@
                         onClicked: () => App.toggleWindow('audio-menu'),
                         child: Widget.Label({
                             setup: self => self.hook(Audio, label => {
-                                label.label = Audio.speaker.isMuted ? "vol mute" : `vol ''${Math.round(Audio.speaker.volume * 100)}%`;
+                                label.label = Audio.speaker.isMuted ? "vol mute" : `vol \${Math.round(Audio.speaker.volume * 100)}%`;
                             })
                         })
                     }),
@@ -157,7 +151,7 @@
                     }),
                     Widget.Label({
                         setup: self => self.hook(Battery, label => {
-                            label.label = `bat ''${Battery.percent}%`;
+                            label.label = `bat \${Battery.percent}%`;
                         })
                     })
                 ]
@@ -165,9 +159,15 @@
         ])
     });
 
+    // --- ACCORDING TO AGS V2 STANDARDS (ONACTIVATE MANDATORY) ---
     App.config({
         style: App.configDir + '/style.css',
-        windows: [ Bar(), audioPopup, wifiPopup, btPopup ]
+        onActivate: () => {
+            App.addWindow(Bar());
+            App.addWindow(audioPopup);
+            App.addWindow(wifiPopup);
+            App.addWindow(btPopup);
+        }
     });
   '';
 
