@@ -67,6 +67,9 @@
   };
 
   services.upower.enable = true;
+  hardware.bluetooth.enable = true;
+  services.power-profiles-daemon.enable = true;
+  security.pam.services.swaylock = { };
 
   ##USERS & PACKAGES
   services.libinput.enable = true;

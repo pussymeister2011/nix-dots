@@ -16,7 +16,7 @@ let
 
   appTsx = ''
     import { App, Astal, Gtk, Gdk } from "astal/gtk3"
-    import { Variable, bind, GLib } from "astal"
+    import { Variable, bind, GLib, timeout } from "astal"
     import { subprocess, execAsync } from "astal/process"
     import Network from "gi://AstalNetwork"
     import Wp from "gi://AstalWp"
@@ -35,6 +35,13 @@ let
       wifiOff: "\u{f05aa}",
       ethernet: "\u{f0200}",
       lock: "\uf023",
+      power: "\uf011",
+      suspend: "\uf186",
+      logout: "\uf08b",
+      reboot: "\u{f0709}",
+      saver: "\uf06c",
+      balanced: "\uf24e",
+      perf: "\uf0e7",
       check: "\uf00c",
       refresh: "\uf021",
       volHigh: "\uf028",
@@ -237,6 +244,16 @@ let
             )),
           )}
         </box>
+      )
+    }
+
+    function PowerButton() {
+      return (
+        <eventbox onClick={() => toggleMenu("power")}>
+          <box className="module power">
+            <label className="icon" label={I.power} />
+          </box>
+        </eventbox>
       )
     }
 
@@ -450,6 +467,78 @@ let
       )
     }
 
+    // ---------- dropdown: power + profiles ----------
+    const armed = Variable<string>("")
+
+    const profile = Variable<string>("balanced").poll(
+      3000,
+      ["powerprofilesctl", "get"],
+      (out) => out.trim(),
+    )
+
+    function PowerRow(id: string, icon: string, text: string, cmd: string[], confirm: boolean) {
+      return (
+        <button
+          className={bind(armed).as((a) => (a === id ? "fm-item danger" : "fm-item"))}
+          onClicked={() => {
+            if (confirm && armed.get() !== id) {
+              armed.set(id)
+              timeout(3000, () => {
+                if (armed.get() === id) armed.set("")
+              })
+              return
+            }
+            armed.set("")
+            openMenu.set("")
+            execAsync(cmd).catch(console.error)
+          }}
+        >
+          <box>
+            <label className="icon" label={icon} />
+            <label
+              xalign={0}
+              hexpand
+              label={bind(armed).as((a) => (a === id ? "Click again to confirm" : text))}
+            />
+          </box>
+        </button>
+      )
+    }
+
+    function PowerMenu() {
+      const profiles: [string, string, string][] = [
+        ["power-saver", I.saver, "Power saver"],
+        ["balanced", I.balanced, "Balanced"],
+        ["performance", I.perf, "Performance"],
+      ]
+      return (
+        <box vertical className="fm-box power">
+          <label className="fm-title" xalign={0} label="Power" />
+          {PowerRow("lock", I.lock, "Lock", ["swaylock", "-f"], false)}
+          {PowerRow("suspend", I.suspend, "Suspend", ["systemctl", "suspend"], false)}
+          {PowerRow("logout", I.logout, "Log out", ["niri", "msg", "action", "quit", "--skip-confirmation"], true)}
+          {PowerRow("reboot", I.reboot, "Reboot", ["systemctl", "reboot"], true)}
+          {PowerRow("poweroff", I.power, "Shut down", ["systemctl", "poweroff"], true)}
+          <label className="fm-sub" xalign={0} label="Power profile" />
+          {profiles.map(([id, icon, text]) => (
+            <button
+              className={bind(profile).as((p) => (p === id ? "fm-item active" : "fm-item"))}
+              onClicked={() =>
+                execAsync(["powerprofilesctl", "set", id])
+                  .then(() => profile.set(id))
+                  .catch(console.error)
+              }
+            >
+              <box>
+                <label className="icon" label={icon} />
+                <label xalign={0} hexpand label={text} />
+              </box>
+            </button>
+          ))}
+        </box>
+      )
+    }
+
     // ---------- popup windows ----------
     const BAR_OFFSET = 46
 
@@ -519,6 +608,7 @@ let
               <BluetoothModule />
               <BatteryModule />
               <SysTray />
+              <PowerButton />
             </box>
           </centerbox>
         </window>
@@ -534,6 +624,7 @@ let
         MenuWindow("audio", <AudioMenu />)
         MenuWindow("wifi", <WifiMenu />)
         MenuWindow("bluetooth", <BluetoothMenu />)
+        MenuWindow("power", <PowerMenu />)
       },
     })
   '';
@@ -612,6 +703,9 @@ let
     .battery.critical { color: ${c.red}; }
     .battery.critical .icon { color: ${c.red}; }
 
+    /* power button */
+    .power .icon { color: ${c.red}; }
+
     /* tray */
     .tray menubutton button {
       background: transparent;
@@ -636,6 +730,8 @@ let
       padding: 12px;
       min-width: 320px;
     }
+
+    .fm-box.power { min-width: 240px; }
 
     .fm-head, .fm-row { margin-bottom: 6px; }
     .fm-title { color: ${c.leaf}; font-weight: bold; font-size: 14px; }
@@ -663,6 +759,12 @@ let
     .fm-item:hover { background: rgba(127, 176, 105, 0.15); }
     .fm-item.active { background: ${c.pill}; color: ${c.leaf}; }
     .fm-item .icon { color: ${c.moss}; margin-right: 10px; }
+
+    .fm-item.danger {
+      background: rgba(201, 82, 74, 0.25);
+      color: ${c.red};
+    }
+    .fm-item.danger .icon { color: ${c.red}; }
 
     scale trough, slider trough {
       background: ${c.pill};
@@ -719,7 +821,10 @@ in
 {
   imports = [ inputs.ags.homeManagerModules.default ];
 
-  home.packages = [ pkgs.nerd-fonts.jetbrains-mono ];
+  home.packages = [
+    pkgs.nerd-fonts.jetbrains-mono
+    pkgs.swaylock
+  ];
   fonts.fontconfig.enable = true;
 
   programs.ags = {
