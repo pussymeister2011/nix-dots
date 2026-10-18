@@ -1,11 +1,10 @@
-# --- AGS CONFIGURATION MODULE ---
 { pkgs, ... }: {
-  # Installs the core shell package along with runtime tracking backends
-  home.packages = with pkgs; [
-    aylurs-gtk-shell
-    networkmanager
-    bluez
-    wireplumber
+  # Installs the correct core shell binary name along with network/audio backends
+  home.packages = [
+    pkgs.ags
+    pkgs.networkmanager
+    pkgs.bluez
+    pkgs.wireplumber
   ];
 
   # Spawns AGS automatically on startup via Home Manager systemd configuration
@@ -15,7 +14,7 @@
       PartOf = [ "graphical-session.target" ];
     };
     Service = {
-      ExecStart = "\${pkgs.aylurs-gtk-shell}/bin/ags";
+      ExecStart = "\${pkgs.ags}/bin/ags";
       Restart = "on-failure";
     };
     Install = { WantedBy = [ "graphical-session.target" ]; };
@@ -28,7 +27,6 @@
     const Network = ags.Service.Network;
     const Bluetooth = ags.Service.Bluetooth;
     const Battery = ags.Service.Battery;
-    const Cpu = ags.Service.Cpu;
 
     // --- SYSTEM TIME INDICATOR ---
     const Clock = () => Widget.Label({
@@ -166,7 +164,8 @@
                     }),
                     Widget.Label({
                         setup: self => self.poll(2000, label => {
-                            label.label = `cpu ''${Math.round(Cpu.usage * 100)}%`;
+                            // Corrected CPU tracking using native system stat calculation
+                            label.label = "cpu " + parseInt(Utils.exec("bash -c \"top -bn1 | grep 'Cpu(s)' | awk '{print \$2}'\"")) + "%";
                         }),
                     }),
                     Widget.Label({
@@ -193,7 +192,6 @@
         font-weight: bold;
     }
 
-    /* Top Panel Layout definitions */
     #bar {
         background-color: #1a231e;
         color: #e1e8e2;
@@ -219,7 +217,6 @@
         color: #a9b665;
     }
 
-    /* Clean True Dropdown Floating Panel Blocks */
     .dropdown-card {
         background-color: #1a231e;
         border: 2px solid #879a72;
