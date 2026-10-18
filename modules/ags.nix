@@ -6,14 +6,16 @@
     pkgs.wireplumber
   ];
 
-  # --- FIXED: Generates app.js instead of config.js for AGS v2 ---
+  # --- COMPILING THE LIVE INTERFACE FILES ---
   xdg.configFile."ags/app.js".text = ''
-    const { App, Widget, Service } = ags;
+    const App = ags.App;
+    const Widget = ags.Widget;
     const Audio = ags.Service.Audio;
     const Network = ags.Service.Network;
     const Bluetooth = ags.Service.Bluetooth;
     const Battery = ags.Service.Battery;
 
+    // --- SYSTEM TIME INDICATOR ---
     const Clock = () => Widget.Label({
         className: "clock",
         setup: self => self.poll(1000, label => {
@@ -22,6 +24,7 @@
         }),
     });
 
+    // --- NATIVE AUDIO DROPDOWN MIXER ---
     const AudioMenu = () => Widget.Box({
         vertical: true,
         className: "dropdown-card",
@@ -50,6 +53,7 @@
         ],
     });
 
+    // --- NATIVE WI-FI DROPDOWN CONTROL ---
     const WifiMenu = () => Widget.Box({
         vertical: true,
         className: "dropdown-card",
@@ -72,6 +76,7 @@
         ],
     });
 
+    // --- NATIVE BLUETOOTH DROPDOWN CONTROL ---
     const BluetoothMenu = () => Widget.Box({
         vertical: true,
         className: "dropdown-card",
@@ -89,6 +94,7 @@
         ],
     });
 
+    // --- GENERIC WINDOW OVERLAY MECHANICS ---
     const PopupWindow = (name, content) => Widget.Window({
         name,
         popup: true,
@@ -102,6 +108,7 @@
     const wifiPopup = PopupWindow("wifi-menu", WifiMenu());
     const btPopup = PopupWindow("bt-menu", BluetoothMenu());
 
+    // --- MAIN STATUS BAR LAYER ---
     const Bar = () => Widget.Window({
         name: "bar",
         anchor: ["top", "left", "right"],
@@ -144,7 +151,7 @@
                     }),
                     Widget.Label({
                         setup: self => self.poll(2000, label => {
-                            label.label = "cpu " + parseInt(Utils.exec("bash -c \"top -bn1 | grep 'Cpu(s)' | awk '{print \$2}'\"")) + "%";
+                            label.label = "cpu " + parseInt(Utils.exec("bash -c \"top -bn1 | grep 'Cpu(s)' | awk '{print \\$2}'\"")) + "%";
                         }),
                     }),
                     Widget.Label({
@@ -159,7 +166,7 @@
 
     App.config({
         style: App.configDir + "/style.css",
-        windows: [ Bar(), audioPopup, wifiPopup, btPopup ],
+        windows: [ Bar(), audioPopup, wifiPopup, btPopup ]
     });
   '';
 
