@@ -6,6 +6,10 @@
 			inputs.nixpkgs.follows = "nixpkgs";
 		};	
 		pixie-sddm.url = "github:xCaptaiN09/pixie-sddm"; 
+		ags = {
+		  url = "github:aylur/ags";
+		  inputs.nixpkgs.follows = "nixpkgs";
+		};
 	};
 
 	outputs = { self, nixpkgs, home-manager, pixie-sddm, ... }@inputs: {
@@ -19,6 +23,7 @@
 				{
 					home-manager.useGlobalPkgs = true;
 					home-manager.useUserPackages = true;
+					home-manager.extraSpecialArgs = { inherit inputs; };
 					home-manager.users.vakh = import ./home.nix;
 				}
 			];
