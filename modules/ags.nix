@@ -6,30 +6,31 @@
     pkgs.wireplumber
   ];
 
-  # --- COMPILING THE LIVE INTERFACE FILES ---
+  # --- COMPILING THE NATIVE AGS V2 JAVASCRIPT ---
   xdg.configFile."ags/app.js".text = ''
-    const App = ags.App;
-    const Widget = ags.Widget;
-    const Audio = ags.Service.Audio;
-    const Network = ags.Service.Network;
-    const Bluetooth = ags.Service.Bluetooth;
-    const Battery = ags.Service.Battery;
+    import App from 'resource:///com/github/Aylur/ags/app.js';
+    import Widget from 'resource:///com/github/Aylur/ags/widget.js';
+    import Utils from 'resource:///com/github/Aylur/ags/utils.js';
+    import Audio from 'resource:///com/github/Aylur/ags/service/audio.js';
+    import Network from 'resource:///com/github/Aylur/ags/service/network.js';
+    import Bluetooth from 'resource:///com/github/Aylur/ags/service/bluetooth.js';
+    import Battery from 'resource:///com/github/Aylur/ags/service/battery.js';
 
     // --- SYSTEM TIME INDICATOR ---
     const Clock = () => Widget.Label({
-        className: "clock",
+        className: 'clock',
         setup: self => self.poll(1000, label => {
             const date = new Date();
             label.label = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " · " + date.toLocaleDateString([], { month: 'short', day: '2-digit' });
-        }),
+        })
     });
 
     // --- NATIVE AUDIO DROPDOWN MIXER ---
     const AudioMenu = () => Widget.Box({
         vertical: true,
-        className: "dropdown-card",
+        className: 'dropdown-card',
         children: [
-            Widget.Label({ label: "Audio Mixer", className: "menu-title" }),
+            Widget.Label({ label: 'Audio Mixer', className: 'menu-title' }),
             Widget.Box({
                 children: [
                     Widget.Button({
@@ -37,61 +38,61 @@
                         child: Widget.Label({
                             setup: self => self.hook(Audio, label => {
                                 label.label = Audio.speaker.isMuted ? "vol mute" : `vol ''${Math.round(Audio.speaker.volume * 100)}%`;
-                            }),
-                        }),
+                            })
+                        })
                     }),
                     Widget.Slider({
                         hexpand: true,
                         drawValue: false,
                         onChange: ({ value }) => Audio.speaker.volume = value,
-                        setup: self => self.hook(Audio, () => {
-                            self.value = Audio.speaker.volume || 0;
-                        }),
-                    }),
-                ],
-            }),
-        ],
+                        setup: self => self.hook(Audio, slider => {
+                            slider.value = Audio.speaker.volume || 0;
+                        })
+                    })
+                ]
+            })
+        ]
     });
 
     // --- NATIVE WI-FI DROPDOWN CONTROL ---
     const WifiMenu = () => Widget.Box({
         vertical: true,
-        className: "dropdown-card",
+        className: 'dropdown-card',
         children: [
-            Widget.Label({ label: "Wireless Network", className: "menu-title" }),
+            Widget.Label({ label: 'Wireless Network', className: 'menu-title' }),
             Widget.Button({
-                className: "menu-toggle",
+                className: 'menu-toggle',
                 onClicked: () => Network.wifi.enabled = !Network.wifi.enabled,
                 child: Widget.Label({
                     setup: self => self.hook(Network, label => {
                         label.label = Network.wifi.enabled ? "Disable Wi-Fi" : "Enable Wi-Fi";
-                    }),
-                }),
+                    })
+                })
             }),
             Widget.Label({
                 setup: self => self.hook(Network, label => {
                     label.label = Network.wifi.ssid ? `Connected: ''${Network.wifi.ssid}` : "Disconnected";
-                }),
-            }),
-        ],
+                })
+            })
+        ]
     });
 
     // --- NATIVE BLUETOOTH DROPDOWN CONTROL ---
     const BluetoothMenu = () => Widget.Box({
         vertical: true,
-        className: "dropdown-card",
+        className: 'dropdown-card',
         children: [
-            Widget.Label({ label: "Bluetooth Devices", className: "menu-title" }),
+            Widget.Label({ label: 'Bluetooth Devices', className: 'menu-title' }),
             Widget.Button({
-                className: "menu-toggle",
+                className: 'menu-toggle',
                 onClicked: () => Bluetooth.toggle(),
                 child: Widget.Label({
                     setup: self => self.hook(Bluetooth, label => {
                         label.label = Bluetooth.enabled ? "Turn Off" : "Turn On";
-                    }),
-                }),
-            }),
-        ],
+                    })
+                })
+            })
+        ]
     });
 
     // --- GENERIC WINDOW OVERLAY MECHANICS ---
@@ -100,77 +101,77 @@
         popup: true,
         visible: false,
         focusable: true,
-        anchor: ["top"],
-        child: content,
+        anchor: ['top'],
+        child: content
     });
 
-    const audioPopup = PopupWindow("audio-menu", AudioMenu());
-    const wifiPopup = PopupWindow("wifi-menu", WifiMenu());
-    const btPopup = PopupWindow("bt-menu", BluetoothMenu());
+    const audioPopup = PopupWindow('audio-menu', AudioMenu());
+    const wifiPopup = PopupWindow('wifi-menu', WifiMenu());
+    const btPopup = PopupWindow('bt-menu', BluetoothMenu());
 
     // --- MAIN STATUS BAR LAYER ---
     const Bar = () => Widget.Window({
-        name: "bar",
-        anchor: ["top", "left", "right"],
-        exclusivity: "exclusive",
+        name: 'bar',
+        anchor: ['top', 'left', 'right'],
+        exclusivity: 'exclusive',
         child: Widget.CenterBox({
-            className: "bar-container",
+            className: 'bar-container',
             startWidget: Widget.Box({
                 children: [
-                    Widget.Label({ label: "❯ niri", className: "wm-tag" }),
-                ],
+                    Widget.Label({ label: '❯ niri', className: 'wm-tag' })
+                ]
             }),
             centerWidget: Clock(),
             endWidget: Widget.Box({
-                hpack: "end",
+                hpack: 'end',
                 spacing: 12,
                 children: [
                     Widget.Button({
-                        onClicked: () => App.toggleWindow("wifi-menu"),
+                        onClicked: () => App.toggleWindow('wifi-menu'),
                         child: Widget.Label({
                             setup: self => self.hook(Network, label => {
                                 label.label = Network.wifi.ssid ? `wifi ''${Network.wifi.ssid}` : "wifi none";
-                            }),
-                        }),
+                            })
+                        })
                     }),
                     Widget.Button({
-                        onClicked: () => App.toggleWindow("bt-menu"),
+                        onClicked: () => App.toggleWindow('bt-menu'),
                         child: Widget.Label({
                             setup: self => self.hook(Bluetooth, label => {
                                 label.label = Bluetooth.enabled ? `bt ''${Bluetooth.connectedDevices.length}` : "bt off";
-                            }),
-                        }),
+                            })
+                        })
                     }),
                     Widget.Button({
-                        onClicked: () => App.toggleWindow("audio-menu"),
+                        onClicked: () => App.toggleWindow('audio-menu'),
                         child: Widget.Label({
                             setup: self => self.hook(Audio, label => {
                                 label.label = Audio.speaker.isMuted ? "vol mute" : `vol ''${Math.round(Audio.speaker.volume * 100)}%`;
-                            }),
-                        }),
+                            })
+                        })
                     }),
                     Widget.Label({
                         setup: self => self.poll(2000, label => {
                             label.label = "cpu " + parseInt(Utils.exec("bash -c \"top -bn1 | grep 'Cpu(s)' | awk '{print \\$2}'\"")) + "%";
-                        }),
+                        })
                     }),
                     Widget.Label({
                         setup: self => self.hook(Battery, label => {
                             label.label = `bat ''${Battery.percent}%`;
-                        }),
-                    }),
-                ],
-            }),
-        ]),
+                        })
+                    })
+                ]
+            })
+        ])
     });
 
     App.config({
-        style: App.configDir + "/style.css",
+        style: App.configDir + '/style.css',
         windows: [ Bar(), audioPopup, wifiPopup, btPopup ]
     });
   '';
 
-  # --- STYLESHEET (FOREST STYLE) ---
+  # --- STYLESHEET (FOREST GREEN THEME) ---
   xdg.configFile."ags/style.css".text = ''
     * {
         font-family: "Noto Sans", sans-serif;
