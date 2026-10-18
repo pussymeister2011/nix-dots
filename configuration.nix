@@ -66,6 +66,8 @@
     ];
   };
 
+  services.upower.enable = true;
+
   ##USERS & PACKAGES
   services.libinput.enable = true;
 
