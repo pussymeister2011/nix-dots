@@ -88,6 +88,9 @@
       textColor = "#e1e8e2";      
       fontFamily = "JetBrains Mono";
     })
+    pulsemixer
+    networkmanager_dmenu
+    xwayland
   ];
 
   fonts.packages = with pkgs; [

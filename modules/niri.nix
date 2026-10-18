@@ -221,5 +221,9 @@
         Ctrl+Alt+Delete { quit; }
         Mod+Shift+P { power-off-monitors; }
     }
+
+    xwayland {
+        enable true
+    }
   '';
 }

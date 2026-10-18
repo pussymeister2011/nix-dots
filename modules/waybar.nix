@@ -1,4 +1,4 @@
-{ ... }: {
+{ pkgs, ... }: {
   programs.waybar = {
     enable = true;
     
@@ -9,46 +9,53 @@
         height = 32;
         spacing = 4;
         
-        # Clean minimalist layout spacing
         modules-left = [ "niri/workspaces" "niri/window" ];
         modules-center = [ "clock" ];
-        modules-right = [ "memory" "cpu" "battery" "tray" ];
+        modules-right = [ "network" "pulseaudio" "memory" "cpu" "battery" "tray" ];
 
         "niri/workspaces" = {
-          format = "{index}"; # Minimal numerical layout matching text style
+          format = "{index}";
         };
 
         "niri/window" = {
-          format = "❯ {title}"; # Utilizes your preferred prompt arrow
+          format = "❯ {title}";
           max-length = 40;
         };
 
         "clock" = {
           format = "{:%H:%M · %b %d}";
-          tooltip-format = "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>";
         };
 
-
-        "battery" = {
-          states = {
-            warning = 30;
-            critical = 15;
-          };
-          format = "󰁹 {capacity}%";
-          format-charging = "󰂄 {capacity}%   ";
+        # --- Drop-out Wi-Fi Selection Menu ---
+        "network" = {
+          interface = "wlan0"; # Change this to your exact interface name if different
+          format-wifi = "wifi {essid}";
+          format-disconnected = "wifi none";
+          tooltip-format = "{ifname} via {gwaddr}";
+          # Toggles an interactive Fuzzel Wi-Fi connector menu when clicked
+          on-click = "${pkgs.networkmanager_dmenu}/bin/networkmanager_dmenu";
         };
 
-        "tray" = {
-          icon-size = 14;
-          spacing = 10;
+        # --- Drop-out Audio control Menu ---
+        "pulseaudio" = {
+          format = "vol {volume}%";
+          format-muted = "vol mute";
+          # Launches your choice of a clean mixer or device switcher
+          on-click = "${pkgs.kitty}/bin/kitty --class pulsemixer -e pulsemixer";
+          on-click-right = "${pkgs.wireplumber}/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
         };
+
+        "cpu" = { format = "cpu {usage}%"; };
+        "memory" = { format = "mem {percentage}%"; };
+        "battery" = { format = "bat {capacity}%"; };
+        "tray" = { icon-size = 14; spacing = 10; };
       };
     };
 
-    # Forest Green Styling Layer
+    # Integrated Forest Green Theme Layer
     style = ''
       * {
-        font-family: "Noto Sans", "Helvetica Neue", sans-serif;
+        font-family: "Noto Sans", sans-serif;
         font-size: 13px;
         font-weight: bold;
         border: none;
@@ -56,53 +63,38 @@
       }
 
       window#waybar {
-        background-color: rgba(26, 35, 30, 0.75); /* 75% transparent deep pine moss */
-        color: #e1e8e2;                            /* Soft white-green tint text */
-        border-bottom: 2px solid #879a72;          /* Sage green border outline */
-        transition-property: background-color;
-        transition-duration: .5s;
+        background-color: rgba(26, 35, 30, 0.75); 
+        color: #e1e8e2;                            
+        border-bottom: 2px solid #879a72;          
       }
 
-      /* Workspaces styling */
       #workspaces button {
         padding: 0 8px;
-        color: #879a72; /* Inactive tabs match sage border */
-        background-color: transparent;
+        color: #879a72;
       }
 
       #workspaces button.focused {
         color: #f4f7f4;
-        background-color: #2d3b32; /* Highlighted row matches Fuzzel active row */
-        border-bottom: 2px solid #a9b665; /* Leaf Green accent indicator */
+        background-color: #2d3b32;
+        border-bottom: 2px solid #a9b665;
       }
 
-      #workspaces button.urgent {
-        color: #d8a657; /* Autumn gold notification flag */
+      /* Distinct color keys matching your text fastfetch modules */
+      #network {
+        color: #a9b665; /* Leaf Green */
       }
 
-      /* Modules block styling */
-      #clock,
-      #cpu,
-      #memory,
-      #battery,
-      #window,
-      #tray {
-        padding: 0 12px;
-        color: #e1e8e2;
+      #pulseaudio {
+        color: #e1e8e2; /* Soft White */
       }
 
-      /* Hardware specifics mirroring Fastfetch key color groupings */
       #cpu, #memory {
         color: #d8a657; /* Autumn Gold */
       }
 
-      #battery.critical:not(.charging) {
-        color: #f38ba8;
-        animation-name: blink;
-        animation-duration: 0.5s;
-        animation-timing-function: linear;
-        animation-iteration-count: infinite;
-        animation-direction: alternate;
+      #clock, #battery, #window, #tray {
+        padding: 0 12px;
+        color: #e1e8e2;
       }
     '';
   };
