@@ -54,9 +54,9 @@
     }
 
     spawn-at-startup "${pkgs.waybar}/bin/waybar"
-    spawn-at-startup "${pkgs.swaybg}/bin/swaybg" "-i" "/home/vakh/Pictures/wallpaper.jpg" "-m" "fill"
+    //spawn-at-startup "${pkgs.swaybg}/bin/swaybg" "-i" "/home/vakh/Pictures/wallpaper.jpg" "-m" "fill"
 	spawn-at-startup "${pkgs.xwayland-satellite}/bin/xwayland-satellite"
-
+	spawn-at-startup "${pkgs.ags}/bin/ags"
 
     hotkey-overlay {
         skip-at-startup

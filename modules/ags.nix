@@ -7,19 +7,6 @@
     pkgs.wireplumber
   ];
 
-  # Spawns AGS automatically on startup via Home Manager systemd configuration
-  systemd.user.services.ags = {
-    Unit = {
-      Description = "Aylur's GTK Shell - Forest Green Bar System";
-      PartOf = [ "graphical-session.target" ];
-    };
-    Service = {
-      ExecStart = "\${pkgs.ags}/bin/ags";
-      Restart = "on-failure";
-    };
-    Install = { WantedBy = [ "graphical-session.target" ]; };
-  };
-
   # --- COMPILING THE LIVE INTERFACE FILES ---
   xdg.configFile."ags/config.js".text = ''
     const { App, Widget, Service } = ags;
