@@ -81,7 +81,7 @@
     git
     (inputs.pixie-sddm.packages.${pkgs.stdenv.hostPlatform.system}.pixie-sddm.override {
       background = "/home/vakh/Pictures/wallpaper.jpg"; 
-      
+      avatar = "/home/vakh/Pictures/avatar.jpg";
       autoColor = false;    
       backgroundColor = "#1a231e";
       accentColor = "#a9b665";    
