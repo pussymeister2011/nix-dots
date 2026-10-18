@@ -31,7 +31,7 @@
     enable = true;
     pulse.enable = true;
   };
-
+  services.displayManager.sessionPackages = [ pkgs.niri ];
   services.displayManager.sddm = {
     enable = true;
     theme = "pixie";            
