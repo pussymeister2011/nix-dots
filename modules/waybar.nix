@@ -27,7 +27,6 @@
         };
 
         "network" = {
-          interface = "wlan0"; 
           format-wifi = "wifi {essid}";
           format-disconnected = "wifi none";
           on-click = "${pkgs.networkmanager_dmenu}/bin/networkmanager_dmenu";
