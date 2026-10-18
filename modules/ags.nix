@@ -3,7 +3,7 @@
 let
   # forest palette
   c = {
-    bg     = "rgba(10, 24, 17, 0.88)";
+    bg     = "rgba(10, 24, 17, 0.92)";
     pill   = "rgba(31, 61, 43, 0.75)";
     border = "rgba(127, 176, 105, 0.25)";
     fg     = "#cfe8d5";
@@ -34,6 +34,9 @@ let
       wifi: "\uf1eb",
       wifiOff: "\u{f05aa}",
       ethernet: "\u{f0200}",
+      lock: "\uf023",
+      check: "\uf00c",
+      refresh: "\uf021",
       volHigh: "\uf028",
       volLow: "\uf027",
       volMute: "\uf026",
@@ -43,6 +46,11 @@ let
       bolt: "\uf0e7",
       bat: ["\uf244", "\uf243", "\uf242", "\uf241", "\uf240"],
     }
+
+    // ---------- menu state ----------
+    const openMenu = Variable<string>("")
+    const toggleMenu = (name: string) =>
+      openMenu.set(openMenu.get() === name ? "" : name)
 
     // ---------- niri state ----------
     const workspaces = Variable<any[]>([])
@@ -69,7 +77,7 @@ let
       )
     }
 
-    // ---------- modules ----------
+    // ---------- bar modules ----------
     function Workspaces() {
       return (
         <box className="workspaces">
@@ -121,20 +129,22 @@ let
       const network = Network.get_default()
       const wifi = network.wifi
       return (
-        <box className="module network">
-          {bind(network, "primary").as((p) => {
-            if (p === Network.Primary.WIRED)
-              return <label className="icon" label={I.ethernet} />
-            if (p === Network.Primary.WIFI && wifi)
-              return (
-                <box>
-                  <label className="icon" label={I.wifi} />
-                  <label label={bind(wifi, "ssid").as((s) => s || "")} />
-                </box>
-              )
-            return <label className="icon off" label={I.wifiOff} />
-          })}
-        </box>
+        <eventbox onClick={() => toggleMenu("wifi")}>
+          <box className="module network">
+            {bind(network, "primary").as((p) => {
+              if (p === Network.Primary.WIRED)
+                return <label className="icon" label={I.ethernet} />
+              if (p === Network.Primary.WIFI && wifi)
+                return (
+                  <box>
+                    <label className="icon" label={I.wifi} />
+                    <label label={bind(wifi, "ssid").as((s) => s || "")} />
+                  </box>
+                )
+              return <label className="icon off" label={I.wifiOff} />
+            })}
+          </box>
+        </eventbox>
       )
     }
 
@@ -150,7 +160,10 @@ let
       )
       return (
         <eventbox
-          onClick={() => (speaker.mute = !speaker.mute)}
+          onClick={(_, e) => {
+            if (e.button === Astal.MouseButton.PRIMARY) toggleMenu("audio")
+            else if (e.button === Astal.MouseButton.SECONDARY) speaker.mute = !speaker.mute
+          }}
           onScroll={(_, e) => {
             const v = speaker.volume - Math.sign(e.delta_y) * 0.03
             speaker.volume = Math.max(0, Math.min(1, v))
@@ -171,9 +184,11 @@ let
         (p, c) => (!p ? I.btOff : c ? I.btConnected : I.bt),
       )
       return (
-        <box className={bind(bt, "isPowered").as((p) => (p ? "module bluetooth" : "module bluetooth off"))}>
-          <label className="icon" label={bind(icon)} />
-        </box>
+        <eventbox onClick={() => toggleMenu("bluetooth")}>
+          <box className={bind(bt, "isPowered").as((p) => (p ? "module bluetooth" : "module bluetooth off"))}>
+            <label className="icon" label={bind(icon)} />
+          </box>
+        </eventbox>
       )
     }
 
@@ -205,7 +220,10 @@ let
     function SysTray() {
       const tray = Tray.get_default()
       return (
-        <box className="module tray">
+        <box
+          className="module tray"
+          visible={bind(tray, "items").as((items) => items.length > 0)}
+        >
           {bind(tray, "items").as((items) =>
             items.map((item) => (
               <menubutton
@@ -219,6 +237,260 @@ let
             )),
           )}
         </box>
+      )
+    }
+
+    // ---------- dropdown: sound ----------
+    function AudioMenu() {
+      const audio = Wp.get_default()!.audio
+      const speaker = audio.defaultSpeaker
+      return (
+        <box vertical className="fm-box">
+          <label className="fm-title" xalign={0} label="Sound" />
+          <box className="fm-row">
+            <button className="fm-btn" onClicked={() => (speaker.mute = !speaker.mute)}>
+              <label label={bind(speaker, "mute").as((m) => (m ? I.volMute : I.volHigh))} />
+            </button>
+            <slider
+              hexpand
+              value={bind(speaker, "volume")}
+              onDragged={({ value }) => (speaker.volume = value)}
+            />
+            <label
+              className="fm-val"
+              label={bind(speaker, "volume").as((v) => Math.round(v * 100) + "%")}
+            />
+          </box>
+          <label className="fm-sub" xalign={0} label="Output device" />
+          <box vertical>
+            {bind(audio, "speakers").as((list) =>
+              list.map((ep) => (
+                <button
+                  className={bind(ep, "isDefault").as((d) => (d ? "fm-item active" : "fm-item"))}
+                  onClicked={() => (ep.isDefault = true)}
+                >
+                  <box>
+                    <label
+                      className="icon"
+                      label={bind(ep, "isDefault").as((d) => (d ? I.check : " "))}
+                    />
+                    <label truncate xalign={0} hexpand maxWidthChars={32} label={ep.description || ep.name} />
+                  </box>
+                </button>
+              )),
+            )}
+          </box>
+        </box>
+      )
+    }
+
+    // ---------- dropdown: wifi ----------
+    const wifiPw = Variable<string>("")   // ssid waiting for a password
+    const wifiMsg = Variable<string>("")
+
+    async function wifiConnect(ssid: string, pw?: string) {
+      wifiMsg.set("Connecting...")
+      try {
+        await execAsync(
+          pw
+            ? ["nmcli", "device", "wifi", "connect", ssid, "password", pw]
+            : ["nmcli", "device", "wifi", "connect", ssid],
+        )
+        wifiMsg.set("")
+        wifiPw.set("")
+      } catch (e) {
+        if (!pw) {
+          wifiMsg.set("")
+          wifiPw.set(ssid)
+        } else {
+          wifiMsg.set("Could not connect. Wrong password?")
+        }
+      }
+    }
+
+    function WifiMenu() {
+      const network = Network.get_default()
+      const wifi = network.wifi
+      if (!wifi) {
+        return (
+          <box vertical className="fm-box">
+            <label className="fm-title" xalign={0} label="Wi-Fi" />
+            <label className="fm-sub" xalign={0} label="No wifi adapter found" />
+          </box>
+        )
+      }
+      return (
+        <box vertical className="fm-box">
+          <box className="fm-head">
+            <label className="fm-title" hexpand xalign={0} label="Wi-Fi" />
+            <button className="fm-btn" onClicked={() => wifi.scan()}>
+              <label label={I.refresh} />
+            </button>
+            <switch
+              valign={Gtk.Align.CENTER}
+              active={bind(wifi, "enabled")}
+              onNotifyActive={({ active }) => (wifi.enabled = active)}
+            />
+          </box>
+          <box vertical>
+            {bind(wifi, "accessPoints").as((aps) => {
+              const seen = new Set<string>()
+              return [...aps]
+                .sort((a, b) => b.strength - a.strength)
+                .filter((ap) => {
+                  if (!ap.ssid || seen.has(ap.ssid)) return false
+                  seen.add(ap.ssid)
+                  return true
+                })
+                .slice(0, 8)
+                .map((ap) => (
+                  <button
+                    className={bind(wifi, "ssid").as((s) =>
+                      s === ap.ssid ? "fm-item active" : "fm-item",
+                    )}
+                    onClicked={() => wifiConnect(ap.ssid)}
+                  >
+                    <box>
+                      <label className="icon" label={ap.requiresPassword ? I.lock : I.wifi} />
+                      <label truncate xalign={0} hexpand maxWidthChars={26} label={ap.ssid} />
+                      <label className="fm-val" label={Math.round(ap.strength) + "%"} />
+                    </box>
+                  </button>
+                ))
+            })}
+          </box>
+          <box vertical visible={bind(wifiPw).as((s) => s !== "")}>
+            <label
+              className="fm-sub"
+              xalign={0}
+              label={bind(wifiPw).as((s) => "Password for " + s)}
+            />
+            <entry
+              visibility={false}
+              placeholderText="Password, then Enter"
+              onActivate={({ text }) => wifiConnect(wifiPw.get(), text)}
+            />
+          </box>
+          <label
+            className="fm-sub"
+            xalign={0}
+            visible={bind(wifiMsg).as((s) => s !== "")}
+            label={bind(wifiMsg)}
+          />
+        </box>
+      )
+    }
+
+    // ---------- dropdown: bluetooth ----------
+    async function btToggleDevice(d: any) {
+      try {
+        if (d.connected) {
+          await execAsync(["bluetoothctl", "disconnect", d.address])
+        } else {
+          if (!d.paired) {
+            await execAsync(["bluetoothctl", "pair", d.address])
+            await execAsync(["bluetoothctl", "trust", d.address])
+          }
+          await execAsync(["bluetoothctl", "connect", d.address])
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+
+    function BluetoothMenu() {
+      const bt = Bluetooth.get_default()
+      return (
+        <box vertical className="fm-box">
+          <box className="fm-head">
+            <label className="fm-title" hexpand xalign={0} label="Bluetooth" />
+            <button
+              className="fm-btn"
+              onClicked={() =>
+                execAsync(["bluetoothctl", "--timeout", "10", "scan", "on"]).catch(console.error)
+              }
+            >
+              <label label={I.refresh} />
+            </button>
+            <switch
+              valign={Gtk.Align.CENTER}
+              active={bind(bt, "isPowered")}
+              onNotifyActive={({ active }) =>
+                execAsync(["bluetoothctl", "power", active ? "on" : "off"]).catch(console.error)
+              }
+            />
+          </box>
+          <box vertical>
+            {bind(bt, "devices").as((devs) =>
+              [...devs]
+                .filter((d) => d.alias || d.name)
+                .sort((a, b) => Number(b.connected) - Number(a.connected))
+                .slice(0, 8)
+                .map((d) => (
+                  <button
+                    className={bind(d, "connected").as((x) => (x ? "fm-item active" : "fm-item"))}
+                    onClicked={() => btToggleDevice(d)}
+                  >
+                    <box>
+                      <label
+                        className="icon"
+                        label={bind(d, "connected").as((x) => (x ? I.btConnected : I.bt))}
+                      />
+                      <label truncate xalign={0} hexpand maxWidthChars={26} label={d.alias || d.name} />
+                      <label
+                        className="fm-val"
+                        label={bind(d, "connected").as((x) => (x ? "connected" : d.paired ? "paired" : ""))}
+                      />
+                    </box>
+                  </button>
+                )),
+            )}
+          </box>
+        </box>
+      )
+    }
+
+    // ---------- popup windows ----------
+    const BAR_OFFSET = 46
+
+    // transparent catcher under the menus: click anywhere outside to close
+    function Scrim() {
+      const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
+      return (
+        <window
+          className="Scrim"
+          namespace="ags-scrim"
+          application={App}
+          layer={Astal.Layer.TOP}
+          exclusivity={Astal.Exclusivity.IGNORE}
+          anchor={TOP | BOTTOM | LEFT | RIGHT}
+          marginTop={BAR_OFFSET}
+          visible={bind(openMenu).as((m) => m !== "")}
+        >
+          <eventbox expand onButtonPressEvent={() => openMenu.set("")}>
+            <box expand />
+          </eventbox>
+        </window>
+      )
+    }
+
+    function MenuWindow(name: string, content: Gtk.Widget) {
+      const { TOP, RIGHT } = Astal.WindowAnchor
+      return (
+        <window
+          className="Menu"
+          namespace="ags-menu"
+          application={App}
+          layer={Astal.Layer.OVERLAY}
+          keymode={Astal.Keymode.ON_DEMAND}
+          exclusivity={Astal.Exclusivity.IGNORE}
+          anchor={TOP | RIGHT}
+          marginTop={BAR_OFFSET}
+          marginRight={8}
+          visible={bind(openMenu).as((m) => m === name)}
+        >
+          {content}
+        </window>
       )
     }
 
@@ -258,6 +530,10 @@ let
       main() {
         startNiri()
         App.get_monitors().map(Bar)
+        Scrim()
+        MenuWindow("audio", <AudioMenu />)
+        MenuWindow("wifi", <WifiMenu />)
+        MenuWindow("bluetooth", <BluetoothMenu />)
       },
     })
   '';
@@ -268,7 +544,7 @@ let
       font-size: 13px;
     }
 
-    window.Bar {
+    window.Bar, window.Menu, window.Scrim {
       background: transparent;
       color: ${c.fg};
     }
@@ -290,10 +566,15 @@ let
 
     .module .icon {
       color: ${c.moss};
-      margin-right: 6px;
+      font-size: 15px;
+      margin-right: 10px;
+      padding-right: 2px;
     }
 
-    .module .icon:last-child { margin-right: 0; }
+    .module .icon:last-child {
+      margin-right: 0;
+      padding-right: 0;
+    }
 
     .module.off, .module .off { color: ${c.dim}; }
     .module.off .icon { color: ${c.dim}; }
@@ -345,6 +626,81 @@ let
       background: ${c.bg};
       border: 1px solid ${c.border};
       border-radius: 8px;
+    }
+
+    /* dropdown menus */
+    .fm-box {
+      background: ${c.bg};
+      border: 1px solid ${c.border};
+      border-radius: 14px;
+      padding: 12px;
+      min-width: 320px;
+    }
+
+    .fm-head, .fm-row { margin-bottom: 6px; }
+    .fm-title { color: ${c.leaf}; font-weight: bold; font-size: 14px; }
+    .fm-sub { color: ${c.dim}; margin-top: 8px; margin-bottom: 2px; }
+    .fm-val { color: ${c.dim}; margin-left: 10px; }
+
+    .fm-btn {
+      background: ${c.pill};
+      color: ${c.moss};
+      border: none;
+      box-shadow: none;
+      border-radius: 8px;
+      padding: 2px 10px;
+      margin: 0 6px;
+    }
+    .fm-btn:hover { background: rgba(127, 176, 105, 0.25); }
+
+    .fm-item {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      border-radius: 8px;
+      padding: 5px 8px;
+    }
+    .fm-item:hover { background: rgba(127, 176, 105, 0.15); }
+    .fm-item.active { background: ${c.pill}; color: ${c.leaf}; }
+    .fm-item .icon { color: ${c.moss}; margin-right: 10px; }
+
+    scale trough, slider trough {
+      background: ${c.pill};
+      border-radius: 6px;
+      min-height: 6px;
+    }
+    scale highlight, slider highlight {
+      background: ${c.moss};
+      border-radius: 6px;
+    }
+    scale slider, slider slider {
+      background: ${c.leaf};
+      border-radius: 50%;
+      min-width: 14px;
+      min-height: 14px;
+      margin: -5px;
+    }
+
+    entry {
+      background: ${c.pill};
+      color: ${c.fg};
+      border: 1px solid ${c.border};
+      border-radius: 8px;
+      padding: 4px 8px;
+    }
+
+    switch {
+      background: ${c.pill};
+      border: none;
+      border-radius: 12px;
+    }
+    switch:checked { background: ${c.moss}; }
+    switch slider {
+      background: ${c.fg};
+      border-radius: 12px;
+      min-width: 18px;
+      min-height: 18px;
+      margin: 0;
     }
   '';
 
