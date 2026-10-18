@@ -72,16 +72,14 @@
 
       window#waybar {
         background-color: #1a231e; 
-        opacity: 0.75;
         color: #e1e8e2;                            
         border-bottom: 2px solid #879a72;          
       }
 
-
-
       #workspaces button {
         padding: 0 8px;
         color: #879a72;
+        background-color: transparent;
       }
 
       #workspaces button.focused {
@@ -95,19 +93,19 @@
       #cpu, #memory { color: #d8a657; }
       #clock, #battery, #window, #tray { padding: 0 12px; color: #e1e8e2; }
 
+      /* GTK Compliant Dropdown Menu Engine Styling */
       menu {
-        background-color: #1a231e !important;
-        border: 2px solid #879a72 !important;
-        border-radius: 6px !important;
-        padding: 6px !important;
+        background-color: #1a231e;
+        border: 2px solid #879a72;
+        padding: 6px;
       }
-      menuitem {
-        color: #e1e8e2 !important;
-        padding: 4px 12px !important;
+      menu menuitem {
+        color: #e1e8e2;
+        padding: 4px 12px;
       }
-      menuitem:hover {
-        background-color: #2d3b32 !important;
-        color: #a9b665 !important;
+      menu menuitem:hover {
+        background-color: #2d3b32;
+        color: #a9b665;
       }
     '';
   };
