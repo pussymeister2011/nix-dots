@@ -3,7 +3,7 @@
     ./zsh.nix
     ./fuzzel.nix
     ./fastfetch.nix
-    ./waybar.nix
+    ./ags.nix
     ./niri.nix
     ./firefox.nix
     ./themes.nix
