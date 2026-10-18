@@ -369,11 +369,12 @@ in
   programs.ags = {
     enable = true;
 
-    configDir = pkgs.linkFarm "ags-bar" [
-      { name = "app.tsx";       path = pkgs.writeText "app.tsx" appTsx; }
-      { name = "style.scss";    path = pkgs.writeText "style.scss" styleScss; }
-      { name = "tsconfig.json"; path = pkgs.writeText "tsconfig.json" tsconfig; }
-    ];
+    configDir = pkgs.runCommand "ags-bar" { } ''
+      mkdir -p $out
+      cp ${pkgs.writeText "app.tsx" appTsx} $out/app.tsx
+      cp ${pkgs.writeText "style.scss" styleScss} $out/style.scss
+      cp ${pkgs.writeText "tsconfig.json" tsconfig} $out/tsconfig.json
+    '';
 
     extraPackages = with inputs.ags.packages.${pkgs.stdenv.hostPlatform.system}; [
       network
