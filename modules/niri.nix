@@ -55,7 +55,7 @@
 
     spawn-at-startup "${pkgs.swaybg}/bin/swaybg" "-i" "/home/vakh/Pictures/wallpaper.jpg" "-m" "fill"
 	spawn-at-startup "${pkgs.xwayland-satellite}/bin/xwayland-satellite"
-	spawn-sh-at-startup "sleep 3; /etc/profiles/per-user/vakh/bin/ags run --gtk 3 "
+	spawn-sh-at-startup "/etc/profiles/per-user/vakh/bin/ags run --gtk 3 "
 
     hotkey-overlay {
         skip-at-startup
