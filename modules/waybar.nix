@@ -26,22 +26,20 @@
           format = "{:%H:%M · %b %d}";
         };
 
-        # --- Drop-out Wi-Fi Selection Menu ---
         "network" = {
-          interface = "wlan0"; # Change this to your exact interface name if different
+          interface = "wlan0"; 
           format-wifi = "wifi {essid}";
           format-disconnected = "wifi none";
-          tooltip-format = "{ifname} via {gwaddr}";
-          # Toggles an interactive Fuzzel Wi-Fi connector menu when clicked
           on-click = "${pkgs.networkmanager_dmenu}/bin/networkmanager_dmenu";
         };
 
-        # --- Drop-out Audio control Menu ---
+        # --- Premium GUI Application Audio Hub ---
         "pulseaudio" = {
           format = "vol {volume}%";
           format-muted = "vol mute";
-          # Launches your choice of a clean mixer or device switcher
-          on-click = "${pkgs.kitty}/bin/kitty --class pulsemixer -e pulsemixer";
+          # Launches the fluid GTK4 app-by-app layout mixer on left click
+          on-click = "${pkgs.pwvucontrol}/bin/pwvucontrol";
+          # Mutes globally on right click
           on-click-right = "${pkgs.wireplumber}/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
         };
 
@@ -52,7 +50,7 @@
       };
     };
 
-    # Integrated Forest Green Theme Layer
+    # Forest Green Styling Rules Layer
     style = ''
       * {
         font-family: "Noto Sans", sans-serif;
@@ -79,23 +77,20 @@
         border-bottom: 2px solid #a9b665;
       }
 
-      /* Distinct color keys matching your text fastfetch modules */
-      #network {
-        color: #a9b665; /* Leaf Green */
-      }
-
-      #pulseaudio {
-        color: #e1e8e2; /* Soft White */
-      }
-
-      #cpu, #memory {
-        color: #d8a657; /* Autumn Gold */
-      }
-
-      #clock, #battery, #window, #tray {
+      #network { color: #a9b665; }
+      
+      /* Highlights your new interactive Volume block to indicate a GUI action */
+      #pulseaudio { 
+        color: #e1e8e2; 
         padding: 0 12px;
-        color: #e1e8e2;
       }
+      #pulseaudio:hover {
+        background-color: #2d3b32;
+        color: #a9b665; /* Transitions to leaf green on mouse hover */
+      }
+
+      #cpu, #memory { color: #d8a657; }
+      #clock, #battery, #window, #tray { padding: 0 12px; color: #e1e8e2; }
     '';
   };
 }

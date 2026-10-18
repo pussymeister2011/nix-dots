@@ -55,6 +55,7 @@
 
     spawn-at-startup "${pkgs.waybar}/bin/waybar"
     spawn-at-startup "${pkgs.swaybg}/bin/swaybg" "-i" "/home/vakh/Pictures/wallpaper.jpg" "-m" "fill"
+	spawn-at-startup "${pkgs.xwayland-satellite}/bin/xwayland-satellite"
 
 
     hotkey-overlay {
@@ -220,10 +221,6 @@
         Mod+Shift+E { quit; }
         Ctrl+Alt+Delete { quit; }
         Mod+Shift+P { power-off-monitors; }
-    }
-
-    xwayland {
-        enable true
     }
   '';
 }

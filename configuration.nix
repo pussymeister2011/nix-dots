@@ -92,6 +92,8 @@
     pulsemixer
     networkmanager_dmenu
     xwayland
+    xwayland-satellite
+    pwvucontrol
   ];
 
   fonts.packages = with pkgs; [
