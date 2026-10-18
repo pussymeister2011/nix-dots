@@ -93,10 +93,10 @@
     networkmanager_dmenu
     xwayland
     xwayland-satellite
-    pwvucontrol
+    pavucontrol
+    brightnessctl
   ];
 
-  programs.brightnessctl.enable = true;
 
   fonts.packages = with pkgs; [
     nerd-fonts.symbols-only

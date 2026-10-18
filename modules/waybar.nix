@@ -37,7 +37,7 @@
           format = "vol {volume}%";
           format-muted = "vol mute";
           # Launches the fluid GTK4 app-by-app layout mixer on left click
-          on-click = "${pkgs.pwvucontrol}/bin/pwvucontrol";
+          on-click = "${pkgs.pavucontrol}/bin/pavucontrol";
           # Mutes globally on right click
           on-click-right = "${pkgs.wireplumber}/bin/wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle";
         };
