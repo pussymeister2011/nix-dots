@@ -591,7 +591,8 @@ let
 
     // ---------- dropdown: calendar ----------
     function CalendarMenu() {
-      const cal = new Gtk.Calendar()
+      // raw GTK3 widgets start hidden, so it has to be shown explicitly
+      const cal = new Gtk.Calendar({ visible: true })
       return (
         <box vertical className="fm-box">
           {cal}
