@@ -55,6 +55,7 @@
 
     spawn-at-startup "${pkgs.swaybg}/bin/swaybg" "-i" "/home/vakh/Pictures/wallpaper.jpg" "-m" "fill"
 	spawn-at-startup "${pkgs.xwayland-satellite}/bin/xwayland-satellite"
+	spawn-sh-at-startup "/etc/profiles/per-user/vakh/bin/layout-notify > /tmp/layout-notify.log 2>&1"
 	spawn-sh-at-startup "/etc/profiles/per-user/vakh/bin/ags run --gtk 3 "
 
     hotkey-overlay {
@@ -81,19 +82,19 @@
         Super+E { spawn "dolphin"; }
         Super+Alt+S allow-when-locked=true hotkey-overlay-title=null { spawn-sh "pkill orca || exec orca"; }
 
-        XF86AudioRaiseVolume allow-when-locked=true { spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.1+ -l 1.0"; }
-        XF86AudioLowerVolume allow-when-locked=true { spawn-sh "wpctl set-volume @DEFAULT_AUDIO_SINK@ 0.1-"; }
-        XF86AudioMute        allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"; }
-        XF86AudioMicMute     allow-when-locked=true { spawn-sh "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"; }
+        XF86AudioRaiseVolume allow-when-locked=true { spawn "swayosd-client" "--output-volume" "raise"; }
+        XF86AudioLowerVolume allow-when-locked=true { spawn "swayosd-client" "--output-volume" "lower"; }
+        XF86MonBrightnessUp allow-when-locked=true { spawn "swayosd-client" "--brightness" "raise"; }
+        XF86MonBrightnessDown allow-when-locked=true { spawn "swayosd-client" "--brightness" "lower"; }
+		XF86AudioMute    allow-when-locked=true { spawn "swayosd-client" "--output-volume" "mute-toggle"; }
+		XF86AudioMicMute allow-when-locked=true { spawn "swayosd-client" "--input-volume" "mute-toggle"; }
+
 
         XF86AudioPlay        allow-when-locked=true { spawn-sh "playerctl play-pause"; }
         XF86AudioStop        allow-when-locked=true { spawn-sh "playerctl stop"; }
         XF86AudioPrev        allow-when-locked=true { spawn-sh "playerctl previous"; }
         XF86AudioNext        allow-when-locked=true { spawn-sh "playerctl next"; }
-
-        XF86MonBrightnessUp allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "+10%"; }
-        XF86MonBrightnessDown allow-when-locked=true { spawn "brightnessctl" "--class=backlight" "set" "10%-"; }
-
+        
         Mod+O repeat=false { toggle-overview; }
         Mod+Q repeat=false { close-window; }
 
