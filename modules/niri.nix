@@ -73,6 +73,12 @@
         clip-to-geometry true
     }
 
+	layer-rule {
+	    match namespace="dashboard"
+	    place-within-backdrop true
+	    opacity 1.0
+	}
+
     binds {
         Mod+Shift+Slash { show-hotkey-overlay; }
         Mod+Return hotkey-overlay-title="Open a Terminal: kitty" { spawn "kitty"; }
