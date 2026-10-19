@@ -61,7 +61,7 @@
         skip-at-startup
     }
     prefer-no-csd
-    screenshot-path ~/Pictures/Screenshots
+    screenshot-path null
 
     window-rule {
         match app-id=r#"firefox$"#
