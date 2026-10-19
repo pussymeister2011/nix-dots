@@ -13,5 +13,7 @@ My NixOS setup with [niri](https://github.com/YaLTeR/niri) and an [AGS](https://
 ```bash
 sudo nixos-rebuild switch --flake .#yourhostname
 ```
+5. You can delete README and the screenshot, you dont need them
+
 you can see and edit bindings in modules/niri.nix and shell aliases and extensions at modules/zsh.nix
  
