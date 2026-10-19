@@ -70,13 +70,15 @@
   hardware.bluetooth.enable = true;
   services.power-profiles-daemon.enable = true;
   security.pam.services.swaylock = { };
+  services.udev.packages = [ pkgs.brightnessctl ];
+
 
   ##USERS & PACKAGES
   services.libinput.enable = true;
 
   users.users.vakh = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" ];
+    extraGroups = [ "wheel" "networkmanager" "video" ];
     shell = pkgs.zsh;
   };
 

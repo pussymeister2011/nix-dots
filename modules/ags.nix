@@ -35,6 +35,7 @@ let
       wifiOff: "\u{f05aa}",
       ethernet: "\u{f0200}",
       lock: "\uf023",
+      sun: "\uf185",
       power: "\uf011",
       suspend: "\uf186",
       logout: "\uf08b",
@@ -539,6 +540,53 @@ let
       )
     }
 
+    // ---------- brightness ----------
+    // brightnessctl -m prints: device,class,current,percent,max
+    const brightness = Variable<number>(1).poll(
+      2000,
+      ["brightnessctl", "-m"],
+      (out) => parseInt(out.trim().split(",")[3]) / 100,
+    )
+
+    function setBrightness(v: number) {
+      const pct = Math.max(1, Math.min(100, Math.round(v * 100)))
+      brightness.set(pct / 100)
+      execAsync(["brightnessctl", "set", pct + "%"]).catch(console.error)
+    }
+
+    function BrightnessModule() {
+      return (
+        <eventbox
+          onClick={() => toggleMenu("brightness")}
+          onScroll={(_, e) => setBrightness(brightness.get() - Math.sign(e.delta_y) * 0.05)}
+        >
+          <box className="module brightness">
+            <label className="icon" label={I.sun} />
+            <label label={bind(brightness).as((v) => Math.round(v * 100) + "%")} />
+          </box>
+        </eventbox>
+      )
+    }
+
+    function BrightnessMenu() {
+      return (
+        <box vertical className="fm-box">
+          <label className="fm-title" xalign={0} label="Brightness" />
+          <box className="fm-row">
+            <slider
+              hexpand
+              value={bind(brightness)}
+              onDragged={({ value }) => setBrightness(value)}
+            />
+            <label
+              className="fm-val"
+              label={bind(brightness).as((v) => Math.round(v * 100) + "%")}
+            />
+          </box>
+        </box>
+      )
+    }
+
     // ---------- popup windows ----------
     const BAR_OFFSET = 46
 
@@ -606,6 +654,7 @@ let
               <Audio />
               <NetworkModule />
               <BluetoothModule />
+              <BrightnessModule />
               <BatteryModule />
               <SysTray />
               <PowerButton />
@@ -624,6 +673,7 @@ let
         MenuWindow("audio", <AudioMenu />)
         MenuWindow("wifi", <WifiMenu />)
         MenuWindow("bluetooth", <BluetoothMenu />)
+        MenuWindow("brightness", <BrightnessMenu />)
         MenuWindow("power", <PowerMenu />)
       },
     })

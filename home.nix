@@ -11,6 +11,7 @@
 		dconf
 		telegram-desktop
 		swaybg
+		nerd-fonts.jetbrains-mono
 	];
 	
 	programs.kitty = {
