@@ -126,10 +126,12 @@ let
         () => GLib.DateTime.new_now_local().format("%a %d %b  %H:%M")!,
       )
       return (
-        <box className="module clock">
-          <label className="icon" label={I.clock} />
-          <label label={bind(time)} />
-        </box>
+        <eventbox onClick={() => toggleMenu("calendar")}>
+          <box className="module clock">
+            <label className="icon" label={I.clock} />
+            <label label={bind(time)} />
+          </box>
+        </eventbox>
       )
     }
 
@@ -587,6 +589,16 @@ let
       )
     }
 
+    // ---------- dropdown: calendar ----------
+    function CalendarMenu() {
+      const cal = new Gtk.Calendar()
+      return (
+        <box vertical className="fm-box">
+          {cal}
+        </box>
+      )
+    }
+
     // ---------- popup windows ----------
     const BAR_OFFSET = 46
 
@@ -611,7 +623,7 @@ let
       )
     }
 
-    function MenuWindow(name: string, content: Gtk.Widget) {
+    function MenuWindow(name: string, content: Gtk.Widget, center = false) {
       const { TOP, RIGHT } = Astal.WindowAnchor
       return (
         <window
@@ -621,7 +633,7 @@ let
           layer={Astal.Layer.OVERLAY}
           keymode={Astal.Keymode.ON_DEMAND}
           exclusivity={Astal.Exclusivity.IGNORE}
-          anchor={TOP | RIGHT}
+          anchor={center ? TOP : TOP | RIGHT}
           marginTop={BAR_OFFSET}
           marginRight={8}
           visible={bind(openMenu).as((m) => m === name)}
@@ -670,6 +682,7 @@ let
         startNiri()
         App.get_monitors().map(Bar)
         Scrim()
+        MenuWindow("calendar", <CalendarMenu />, true)
         MenuWindow("audio", <AudioMenu />)
         MenuWindow("wifi", <WifiMenu />)
         MenuWindow("bluetooth", <BluetoothMenu />)
@@ -853,6 +866,26 @@ let
       min-width: 18px;
       min-height: 18px;
       margin: 0;
+    }
+    calendar {
+      background: transparent;
+      color: ${c.fg};
+      border: none;
+      padding: 4px;
+    }
+    calendar.header { color: ${c.leaf}; font-weight: bold; }
+    calendar.button {
+      color: ${c.moss};
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+    calendar.button:hover { background: rgba(127, 176, 105, 0.2); }
+    calendar:indeterminate { color: ${c.dim}; }
+    calendar:selected {
+      background: ${c.moss};
+      color: #0a1811;
+      border-radius: 6px;
     }
   '';
 
