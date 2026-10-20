@@ -53,6 +53,7 @@ let
       cpu: "\uf2db",
       gpu: "\u{f08ae}",
       disk: "\uf0a0",
+      usb: "\uf287",
       volHigh: "\uf028",
       volLow: "\uf027",
       volMute: "\uf026",
@@ -62,6 +63,12 @@ let
       bolt: "\uf0e7",
       bat: ["\uf244", "\uf243", "\uf242", "\uf241", "\uf240"],
     }
+
+    // ---------- scaling (computed from the monitor height when the bar starts) ----------
+    const REF_HEIGHT = 1080   // monitor height at which everything looks right at 1.0
+    const SCALE_MULT = 1.0    // manual nudge: 1.2 makes everything 20% bigger
+    let SCALE = 1
+    const S = (n: number) => Math.round(n * SCALE)
 
     // ---------- menu state ----------
     const openMenu = Variable<string>("")
@@ -776,7 +783,7 @@ let
     const cpu = Variable<number>(0)
     const gpu = Variable<number>(0)
     const gpuAvail = Variable<boolean>(false)
-    const disks = Variable<{ label: string; frac: number; text: string }[]>([])
+    const disks = Variable<{ label: string; frac: number; text: string; removable: boolean }[]>([])
 
     let prevTotal = 0
     let prevIdle = 0
@@ -843,36 +850,54 @@ let
       return g >= 1000 ? (g / 1024).toFixed(1) + "T" : Math.round(g) + "G"
     }
 
-    function readDisks() {
-      const home = GLib.get_home_dir()
+    // ---------- mounted disks: found automatically, any mount path ----------
+    const unescapeMount = (s: string) =>
+      s.replace(/\\([0-7]{3})/g, (_m, o) => String.fromCharCode(parseInt(o, 8)))
 
-      // filesystem id of a path, or null when it does not exist
-      const fsId = (p: string): string | null => {
-        try {
-          return Gio.File.new_for_path(p)
-            .query_info("id::filesystem", Gio.FileQueryInfoFlags.NONE, null)
-            .get_attribute_string("id::filesystem")
-        } catch (e) {
-          return null
-        }
+    // real block-device filesystems, one entry per device (shortest mount path wins,
+    // so "/" beats "/nix/store" and btrfs subvolumes collapse into one row)
+    function listMounts(): { dev: string; path: string }[] {
+      let text = ""
+      try {
+        text = readFile("/proc/self/mounts")
+      } catch (e) {
+        return []
       }
-      const rootId = fsId("/")
+      const skipTypes = ["squashfs", "iso9660", "autofs", "swap"]
+      const byDev = new Map<string, string>()
+      for (const line of text.split("\n")) {
+        const f = line.split(" ")
+        if (f.length < 3) continue
+        const dev = unescapeMount(f[0])
+        const path = unescapeMount(f[1])
+        if (!dev.startsWith("/dev/")) continue
+        if (/^\/dev\/(loop|zram|ram)/.test(dev)) continue
+        if (skipTypes.includes(f[2])) continue
+        if (path === "/boot" || path.startsWith("/boot/") || path.startsWith("/efi")) continue
+        const prev = byDev.get(dev)
+        if (prev === undefined || path.length < prev.length) byDev.set(dev, path)
+      }
+      return [...byDev.entries()]
+        .map(([dev, path]) => ({ dev, path }))
+        .sort((a, b) => (a.path === "/" ? -1 : b.path === "/" ? 1 : a.path.localeCompare(b.path)))
+    }
 
-      // [label, path, only show when mounted]
-      const targets: [string, string, boolean][] = [
-        ["/", "/", false],
-        ["~/HDD", home + "/HDD", true],
-        ["~/SSD", home + "/SSD", true],
-      ]
+    function diskLabel(path: string) {
+      if (path === "/") return "/"
+      const home = GLib.get_home_dir()
+      if (path === home) return "~"
+      if (path.startsWith(home + "/")) return "~/" + path.slice(home.length + 1)
+      const m = path.match(/^\/(?:run\/media\/[^/]+|media(?:\/[^/]+)?)\/(.+)$/)
+      return m ? m[1] : path
+    }
 
-      const list: { label: string; frac: number; text: string }[] = []
-      for (const [label, path, optional] of targets) {
-        if (optional) {
-          const id = fsId(path)
-          if (id === null || id === rootId) continue   // missing, or just a folder on /
-        }
+    const isRemovable = (path: string) => /^\/(run\/media|media)\//.test(path)
+
+    function readDisks() {
+      const list: { label: string; frac: number; text: string; removable: boolean }[] = []
+      for (const m of listMounts().slice(0, 6)) {
         try {
-          const info = Gio.File.new_for_path(path).query_filesystem_info(
+          const info = Gio.File.new_for_path(m.path).query_filesystem_info(
             "filesystem::size,filesystem::used,filesystem::free",
             null,
           )
@@ -882,12 +907,13 @@ let
             ? info.get_attribute_uint64("filesystem::used")
             : total - info.get_attribute_uint64("filesystem::free")
           list.push({
-            label,
+            label: diskLabel(m.path),
             frac: total > 0 ? used / total : 0,
             text: fmtSize(used) + " / " + fmtSize(total),
+            removable: isRemovable(m.path),
           })
         } catch (e) {
-          list.push({ label, frac: 0, text: "n/a" })
+          // unreadable mount: skip it
         }
       }
       disks.set(list)
@@ -896,19 +922,30 @@ let
     // polling starts once at launch (the dashboard is always visible now)
     let statTimer: any = null
     let diskTimer: any = null
+    let mountSig = ""
+    let diskTick = 0
 
     function startStats() {
       if (statTimer) return
       prevTotal = 0
       readCpu()
       readGpu()
+      mountSig = listMounts().map((m) => m.path).join("|")
       readDisks()
       timeout(500, readCpu)
       statTimer = interval(2000, () => {
         readCpu()
         readGpu()
       })
-      diskTimer = interval(15000, readDisks)
+      // every 3s: notice plugged / unplugged drives; every 15s: refresh the usage numbers
+      diskTimer = interval(3000, () => {
+        diskTick++
+        const sig = listMounts().map((m) => m.path).join("|")
+        if (sig !== mountSig || diskTick % 5 === 0) {
+          mountSig = sig
+          readDisks()
+        }
+      })
     }
 
     // ---------- dashboard: widgets ----------
@@ -958,7 +995,7 @@ let
     }
 
     // ---------- popup windows ----------
-    const BAR_OFFSET = 46
+    let BAR_OFFSET = 46
 
     // transparent catcher under the menus: click anywhere outside to close
     function Scrim() {
@@ -993,7 +1030,7 @@ let
           exclusivity={Astal.Exclusivity.IGNORE}
           anchor={center ? TOP : TOP | RIGHT}
           marginTop={BAR_OFFSET}
-          marginRight={8}
+          marginRight={S(8)}
           visible={bind(openMenu).as((m) => m === name)}
         >
           {content}
@@ -1029,7 +1066,7 @@ let
               </box>
             </box>
 
-            <box halign={Gtk.Align.CENTER} valign={Gtk.Align.CENTER} spacing={20}>
+            <box halign={Gtk.Align.CENTER} valign={Gtk.Align.CENTER} spacing={S(20)}>
               <box className="dash-card">{cal}</box>
 
               <box vertical className="dash-card dash-stats">
@@ -1039,17 +1076,17 @@ let
                     {StatRow(I.gpu, "GPU", bind(gpu), bind(gpu).as((v) => Math.round(v * 100) + "%"))}
                   </box>
                   {bind(disks).as((list) =>
-                    list.map((d) => StatRow(I.disk, d.label, d.frac, d.text)),
+                    list.map((d) => StatRow(d.removable ? I.usb : I.disk, d.label, d.frac, d.text)),
                   )}
                 </box>
               </box>
 
-              <box vertical className="dash-card dash-power" spacing={10}>
-                <box homogeneous vexpand spacing={10}>
+              <box vertical className="dash-card dash-power" spacing={S(10)}>
+                <box homogeneous vexpand spacing={S(10)}>
                   {PowerTile("lock", I.lock, "Lock", ["swaylock", "-f"], false)}
                   {PowerTile("suspend", I.suspend, "Suspend", ["systemctl", "suspend"], false)}
                 </box>
-                <box homogeneous vexpand spacing={10}>
+                <box homogeneous vexpand spacing={S(10)}>
                   {PowerTile("logout", I.logout, "Log out", ["niri", "msg", "action", "quit", "--skip-confirmation"], true)}
                   {PowerTile("reboot", I.reboot, "Reboot", ["systemctl", "reboot"], true)}
                 </box>
@@ -1097,11 +1134,51 @@ let
       )
     }
 
+    // every "NNpx" in the stylesheet is multiplied by SCALE
+    const scaleCss = (css: string) =>
+      css.replace(/(-?\d*\.?\d+)px/g, (_m, n) => {
+        const v = parseFloat(n) * SCALE
+        const r = Math.round(v)
+        return (r === 0 && v !== 0 ? Math.sign(v) : r) + "px"
+      }) + "\n.tray image { -gtk-icon-size: " + S(16) + "px; }\n"
+
+    // The normal stylesheet is always loaded first (see App.start). This only adds a
+    // scaled copy on top, so if it ever fails the bar keeps its regular styles.
+    function applyScale(mon: Gdk.Monitor) {
+      let h = 0
+      try {
+        h = mon.get_geometry().height
+      } catch (e) {
+        console.error("ags: could not read monitor size", e)
+      }
+      const raw = h > 0 ? (h / REF_HEIGHT) * SCALE_MULT : SCALE_MULT
+      SCALE = Number.isFinite(raw) ? Math.max(0.75, Math.min(3, Math.round(raw * 20) / 20)) : 1
+      console.log("ags: monitor height " + h + ", scale " + SCALE)
+      if (SCALE === 1) return
+      try {
+        const css = scaleCss(style)
+        if (css.includes("NaN")) throw new Error("scaled css contains NaN")
+        const provider = new Gtk.CssProvider()
+        provider.load_from_data(css)
+        Gtk.StyleContext.add_provider_for_screen(
+          Gdk.Screen.get_default()!,
+          provider,
+          Gtk.STYLE_PROVIDER_PRIORITY_USER + 1,
+        )
+      } catch (e) {
+        console.error("ags: scaled css failed, using normal sizes", e)
+        SCALE = 1
+      }
+    }
+
     App.start({
       css: style,
       main() {
-        startNiri()
         const mons = App.get_monitors()
+        applyScale(mons[0])
+        BAR_OFFSET = S(46)
+
+        startNiri()
         mons.map(Bar)
         startStats()
         Dashboard(mons[0])
