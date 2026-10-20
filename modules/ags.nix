@@ -35,6 +35,7 @@ let
       wifiOff: "\u{f05aa}",
       ethernet: "\u{f0200}",
       lock: "\uf023",
+      kbd: "\uf11c",
       sun: "\uf185",
       power: "\uf011",
       suspend: "\uf186",
@@ -63,6 +64,7 @@ let
     // ---------- niri state ----------
     const workspaces = Variable<any[]>([])
     const focused = Variable<any>(null)
+    const layout = Variable<string>("")
 
     async function refresh() {
       try {
@@ -71,6 +73,8 @@ let
           String(a.output).localeCompare(String(b.output)) || a.idx - b.idx)
         workspaces.set(ws)
         focused.set(JSON.parse(await execAsync(["niri", "msg", "--json", "focused-window"])))
+        const kl = JSON.parse(await execAsync(["niri", "msg", "--json", "keyboard-layouts"]))
+        layout.set(kl.names[kl.current_idx])
       } catch (e) {
         console.error(e)
       }
@@ -117,6 +121,31 @@ let
             label={bind(focused).as((w) => (w && w.title ? w.title : "Desktop"))}
           />
         </box>
+      )
+    }
+
+    const layoutShort = (n: string) => {
+      const map: Record<string, string> = {
+        English: "EN", Russian: "RU", Japanese: "JA",
+        German: "DE", French: "FR", Spanish: "ES",
+      }
+      const first = n.split(/[ (]/)[0]
+      return map[first] || first.slice(0, 2).toUpperCase()
+    }
+
+    function LayoutButton() {
+      return (
+        <eventbox
+          visible={bind(layout).as((l) => l !== "")}
+          onClick={() =>
+            execAsync(["niri", "msg", "action", "switch-layout", "next"]).catch(console.error)
+          }
+        >
+          <box className="module layout">
+            <label className="icon" label={I.kbd} />
+            <label label={bind(layout).as(layoutShort)} />
+          </box>
+        </eventbox>
       )
     }
 
@@ -593,6 +622,28 @@ let
     function CalendarMenu() {
       // raw GTK3 widgets start hidden, so it has to be shown explicitly
       const cal = new Gtk.Calendar({ visible: true })
+
+      // highlight a day only when the shown month is the current one
+      const sync = () => {
+        const now = GLib.DateTime.new_now_local()
+        if (cal.year === now.get_year() && cal.month === now.get_month() - 1)
+          cal.select_day(now.get_day_of_month())
+        else
+          cal.select_day(0)
+      }
+
+      const goToday = () => {
+        const now = GLib.DateTime.new_now_local()
+        cal.select_month(now.get_month() - 1, now.get_year())
+        cal.select_day(now.get_day_of_month())
+      }
+
+      cal.connect("month-changed", sync)
+      openMenu.subscribe((m) => {
+        if (m === "calendar") goToday()
+      })
+      goToday()
+
       return (
         <box vertical className="fm-box">
           {cal}
@@ -664,6 +715,7 @@ let
               <Clock />
             </box>
             <box halign={Gtk.Align.END}>
+              <LayoutButton />
               <Audio />
               <NetworkModule />
               <BluetoothModule />

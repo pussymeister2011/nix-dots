@@ -81,6 +81,8 @@
         Super+B { spawn "firefox"; }
         Super+E { spawn "dolphin"; }
         Super+Alt+S allow-when-locked=true hotkey-overlay-title=null { spawn-sh "pkill orca || exec orca"; }
+	
+		Mod+Space { switch-layout "next"; }
 
         XF86AudioRaiseVolume allow-when-locked=true { spawn "swayosd-client" "--output-volume" "raise"; }
         XF86AudioLowerVolume allow-when-locked=true { spawn "swayosd-client" "--output-volume" "lower"; }
