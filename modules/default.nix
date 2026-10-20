@@ -7,6 +7,7 @@
     ./niri.nix
     ./osd.nix
     ./firefox.nix
+    ./lock.nix
     ./themes.nix
   ];
 }
