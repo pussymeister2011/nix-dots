@@ -18,6 +18,8 @@ let
     import { App, Astal, Gtk, Gdk } from "astal/gtk3"
     import { Variable, bind, GLib, timeout, interval } from "astal"
     import { subprocess, execAsync } from "astal/process"
+    import { readFile } from "astal/file"
+    import Gio from "gi://Gio"
     import Network from "gi://AstalNetwork"
     import Wp from "gi://AstalWp"
     import Bluetooth from "gi://AstalBluetooth"
@@ -35,10 +37,10 @@ let
       wifiOff: "\u{f05aa}",
       ethernet: "\u{f0200}",
       lock: "\uf023",
-      mic: "\uf130",
-      micOff: "\uf131",
       kbd: "\uf11c",
       sun: "\uf185",
+      mic: "\uf130",
+      micOff: "\uf131",
       power: "\uf011",
       suspend: "\uf186",
       logout: "\uf08b",
@@ -48,6 +50,9 @@ let
       perf: "\uf0e7",
       check: "\uf00c",
       refresh: "\uf021",
+      cpu: "\uf2db",
+      gpu: "\u{f08ae}",
+      disk: "\uf0a0",
       volHigh: "\uf028",
       volLow: "\uf027",
       volMute: "\uf026",
@@ -233,6 +238,33 @@ let
       )
     }
 
+    // brightnessctl -m prints: device,class,current,percent,max
+    const brightness = Variable<number>(1).poll(
+      2000,
+      ["brightnessctl", "-m"],
+      (out) => parseInt(out.trim().split(",")[3]) / 100,
+    )
+
+    function setBrightness(v: number) {
+      const pct = Math.max(1, Math.min(100, Math.round(v * 100)))
+      brightness.set(pct / 100)
+      execAsync(["brightnessctl", "set", pct + "%"]).catch(console.error)
+    }
+
+    function BrightnessModule() {
+      return (
+        <eventbox
+          onClick={() => toggleMenu("brightness")}
+          onScroll={(_, e) => setBrightness(brightness.get() - Math.sign(e.delta_y) * 0.05)}
+        >
+          <box className="module brightness">
+            <label className="icon" label={I.sun} />
+            <label label={bind(brightness).as((v) => Math.round(v * 100) + "%")} />
+          </box>
+        </eventbox>
+      )
+    }
+
     function BatteryModule() {
       const bat = Battery.get_default()
       const state = Variable.derive(
@@ -324,21 +356,24 @@ let
     openMenu.subscribe((m) => (m === "audio" ? startMicMeter() : stopMicMeter()))
 
     // ---------- dropdown: sound ----------
-    function DeviceList(list: any[]) {
-      return list.map((ep) => (
-        <button
-          className={bind(ep, "isDefault").as((d) => (d ? "fm-item active" : "fm-item"))}
-          onClicked={() => (ep.isDefault = true)}
-        >
-          <box>
-            <label
-              className="icon"
-              label={bind(ep, "isDefault").as((d) => (d ? I.check : " "))}
-            />
-            <label truncate xalign={0} hexpand maxWidthChars={34} label={ep.description || ep.name} />
-          </box>
-        </button>
-      ))
+    function DeviceList(prop: string, audio: any) {
+      return (list: any[]) =>
+        list.map((ep) => {
+          const isDef = bind(audio, prop).as((d: any) => !!d && d.id === ep.id)
+          return (
+            <button
+              className={isDef.as((d) => (d ? "fm-item active" : "fm-item"))}
+              onClicked={() =>
+                execAsync(["wpctl", "set-default", String(ep.id)]).catch(console.error)
+              }
+            >
+              <box>
+                <label className="icon" label={isDef.as((d) => (d ? I.check : " "))} />
+                <label truncate xalign={0} hexpand maxWidthChars={34} label={ep.description || ep.name} />
+              </box>
+            </button>
+          )
+        })
     }
 
     function StreamRow(s: any) {
@@ -394,7 +429,7 @@ let
               label={bind(speaker, "volume").as((v) => Math.round(v * 100) + "%")}
             />
           </box>
-          <box vertical>{bind(audio, "speakers").as(DeviceList)}</box>
+          <box vertical>{bind(audio, "speakers").as(DeviceList("defaultSpeaker", audio))}</box>
 
           <label className="fm-sub" xalign={0} label="Input" />
           {bind(audio, "defaultMicrophone").as((mic) =>
@@ -420,7 +455,7 @@ let
               <label className="fm-sub" xalign={0} label="No microphone found" />
             ),
           )}
-          <box vertical>{bind(audio, "microphones").as(DeviceList)}</box>
+          <box vertical>{bind(audio, "microphones").as(DeviceList("defaultMicrophone", audio))}</box>
 
           <label
             className="fm-sub"
@@ -434,7 +469,7 @@ let
         </box>
       )
     }
-    
+
     // ---------- dropdown: wifi ----------
     const wifiPw = Variable<string>("")   // ssid waiting for a password
     const wifiMsg = Variable<string>("")
@@ -610,22 +645,25 @@ let
       (out) => out.trim(),
     )
 
+    // two-click confirmation for destructive actions (used by the menu and the dashboard)
+    function runPower(id: string, cmd: string[], confirm: boolean) {
+      if (confirm && armed.get() !== id) {
+        armed.set(id)
+        timeout(3000, () => {
+          if (armed.get() === id) armed.set("")
+        })
+        return
+      }
+      armed.set("")
+      openMenu.set("")
+      execAsync(cmd).catch(console.error)
+    }
+
     function PowerRow(id: string, icon: string, text: string, cmd: string[], confirm: boolean) {
       return (
         <button
           className={bind(armed).as((a) => (a === id ? "fm-item danger" : "fm-item"))}
-          onClicked={() => {
-            if (confirm && armed.get() !== id) {
-              armed.set(id)
-              timeout(3000, () => {
-                if (armed.get() === id) armed.set("")
-              })
-              return
-            }
-            armed.set("")
-            openMenu.set("")
-            execAsync(cmd).catch(console.error)
-          }}
+          onClicked={() => runPower(id, cmd, confirm)}
         >
           <box>
             <label className="icon" label={icon} />
@@ -673,34 +711,7 @@ let
       )
     }
 
-    // ---------- brightness ----------
-    // brightnessctl -m prints: device,class,current,percent,max
-    const brightness = Variable<number>(1).poll(
-      2000,
-      ["brightnessctl", "-m"],
-      (out) => parseInt(out.trim().split(",")[3]) / 100,
-    )
-
-    function setBrightness(v: number) {
-      const pct = Math.max(1, Math.min(100, Math.round(v * 100)))
-      brightness.set(pct / 100)
-      execAsync(["brightnessctl", "set", pct + "%"]).catch(console.error)
-    }
-
-    function BrightnessModule() {
-      return (
-        <eventbox
-          onClick={() => toggleMenu("brightness")}
-          onScroll={(_, e) => setBrightness(brightness.get() - Math.sign(e.delta_y) * 0.05)}
-        >
-          <box className="module brightness">
-            <label className="icon" label={I.sun} />
-            <label label={bind(brightness).as((v) => Math.round(v * 100) + "%")} />
-          </box>
-        </eventbox>
-      )
-    }
-
+    // ---------- dropdown: brightness ----------
     function BrightnessMenu() {
       return (
         <box vertical className="fm-box">
@@ -720,8 +731,8 @@ let
       )
     }
 
-    // ---------- dropdown: calendar ----------
-    function CalendarMenu() {
+    // ---------- calendar (shared by the dropdown and the dashboard) ----------
+    function makeCalendar() {
       // raw GTK3 widgets start hidden, so it has to be shown explicitly
       const cal = new Gtk.Calendar({ visible: true })
 
@@ -741,15 +752,208 @@ let
       }
 
       cal.connect("month-changed", sync)
+      goToday()
+      return { cal, goToday }
+    }
+
+    function CalendarMenu() {
+      const { cal, goToday } = makeCalendar()
       openMenu.subscribe((m) => {
         if (m === "calendar") goToday()
       })
-      goToday()
-
       return (
         <box vertical className="fm-box">
           {cal}
         </box>
+      )
+    }
+
+    // ---------- dashboard: stats ----------
+    // set to false if you have an NVIDIA GPU on a laptop and do not want
+    // nvidia-smi to wake it up (see notes)
+    const ALLOW_NVIDIA_SMI = true
+
+    const cpu = Variable<number>(0)
+    const gpu = Variable<number>(0)
+    const gpuAvail = Variable<boolean>(false)
+    const disks = Variable<{ label: string; frac: number; text: string }[]>([])
+
+    let prevTotal = 0
+    let prevIdle = 0
+
+    function readCpu() {
+      try {
+        const line = readFile("/proc/stat").split("\n")[0]
+        const v = line.trim().split(/\s+/).slice(1).map(Number)
+        const idle = v[3] + (v[4] || 0)
+        const total = v.slice(0, 8).reduce((a, b) => a + b, 0)
+        if (prevTotal > 0) {
+          const dt = total - prevTotal
+          const di = idle - prevIdle
+          cpu.set(dt > 0 ? Math.max(0, Math.min(1, 1 - di / dt)) : 0)
+        }
+        prevTotal = total
+        prevIdle = idle
+      } catch (e) {
+        console.error(e)
+      }
+    }
+
+    let gpuMode: "unknown" | "sysfs" | "nvidia" | "none" = "unknown"
+    let gpuPath = ""
+
+    function probeGpu() {
+      for (let i = 0; i < 4; i++) {
+        const p = "/sys/class/drm/card" + i + "/device/gpu_busy_percent"
+        if (GLib.file_test(p, GLib.FileTest.EXISTS)) {
+          gpuMode = "sysfs"
+          gpuPath = p
+          gpuAvail.set(true)
+          return
+        }
+      }
+      if (ALLOW_NVIDIA_SMI && GLib.find_program_in_path("nvidia-smi")) {
+        gpuMode = "nvidia"
+        gpuAvail.set(true)
+        return
+      }
+      gpuMode = "none"
+    }
+
+    function readGpu() {
+      if (gpuMode === "unknown") probeGpu()
+      if (gpuMode === "sysfs") {
+        try {
+          gpu.set(Math.min(1, parseInt(readFile(gpuPath)) / 100))
+        } catch (e) {
+          console.error(e)
+        }
+      } else if (gpuMode === "nvidia") {
+        execAsync(["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"])
+          .then((out) => gpu.set(Math.min(1, parseInt(out.trim()) / 100)))
+          .catch(() => {
+            gpuMode = "none"
+            gpuAvail.set(false)
+          })
+      }
+    }
+
+    const fmtSize = (bytes: number) => {
+      const g = bytes / 1073741824
+      return g >= 1000 ? (g / 1024).toFixed(1) + "T" : Math.round(g) + "G"
+    }
+
+    function readDisks() {
+      const home = GLib.get_home_dir()
+
+      // filesystem id of a path, or null when it does not exist
+      const fsId = (p: string): string | null => {
+        try {
+          return Gio.File.new_for_path(p)
+            .query_info("id::filesystem", Gio.FileQueryInfoFlags.NONE, null)
+            .get_attribute_string("id::filesystem")
+        } catch (e) {
+          return null
+        }
+      }
+      const rootId = fsId("/")
+
+      // [label, path, only show when mounted]
+      const targets: [string, string, boolean][] = [
+        ["/", "/", false],
+        ["~/HDD", home + "/HDD", true],
+        ["~/SSD", home + "/SSD", true],
+      ]
+
+      const list: { label: string; frac: number; text: string }[] = []
+      for (const [label, path, optional] of targets) {
+        if (optional) {
+          const id = fsId(path)
+          if (id === null || id === rootId) continue   // missing, or just a folder on /
+        }
+        try {
+          const info = Gio.File.new_for_path(path).query_filesystem_info(
+            "filesystem::size,filesystem::used,filesystem::free",
+            null,
+          )
+          const total = info.get_attribute_uint64("filesystem::size")
+          // same definition of "used" as df and fastfetch
+          const used = info.has_attribute("filesystem::used")
+            ? info.get_attribute_uint64("filesystem::used")
+            : total - info.get_attribute_uint64("filesystem::free")
+          list.push({
+            label,
+            frac: total > 0 ? used / total : 0,
+            text: fmtSize(used) + " / " + fmtSize(total),
+          })
+        } catch (e) {
+          list.push({ label, frac: 0, text: "n/a" })
+        }
+      }
+      disks.set(list)
+    }
+
+    // polling starts once at launch (the dashboard is always visible now)
+    let statTimer: any = null
+    let diskTimer: any = null
+
+    function startStats() {
+      if (statTimer) return
+      prevTotal = 0
+      readCpu()
+      readGpu()
+      readDisks()
+      timeout(500, readCpu)
+      statTimer = interval(2000, () => {
+        readCpu()
+        readGpu()
+      })
+      diskTimer = interval(15000, readDisks)
+    }
+
+    // ---------- dashboard: widgets ----------
+    const bigTime = Variable("").poll(
+      1000,
+      () => GLib.DateTime.new_now_local().format("%H:%M")!,
+    )
+    const bigDate = Variable("").poll(
+      30000,
+      () => GLib.DateTime.new_now_local().format("%A, %d %B %Y")!,
+    )
+
+    function StatRow(icon: string, name: string, frac: any, text: any) {
+      return (
+        <box vertical className="dash-stat">
+          <box>
+            <label className="icon" label={icon} />
+            <label className="dash-stat-name" xalign={0} hexpand label={name} />
+            <label className="fm-val" label={text} />
+          </box>
+          <levelbar className="dash-bar" hexpand value={frac} />
+        </box>
+      )
+    }
+
+    function PowerTile(
+      id: string,
+      icon: string,
+      text: string,
+      cmd: string[],
+      confirm: boolean,
+      extra = "",
+    ) {
+      return (
+        <button
+          hexpand
+          vexpand
+          className={bind(armed).as(
+            (a) => (a === id ? "dash-btn danger" : "dash-btn") + (extra ? " " + extra : ""),
+          )}
+          tooltipText={bind(armed).as((a) => (a === id ? "Click again to confirm" : text))}
+          onClicked={() => runPower(id, cmd, confirm)}
+        >
+          <label label={icon} />
+        </button>
       )
     }
 
@@ -797,6 +1001,68 @@ let
       )
     }
 
+    // ---------- dashboard window ----------
+    // BOTTOM layer: above the wallpaper, below every normal window
+    function Dashboard(gdkmonitor: Gdk.Monitor) {
+      const { TOP, BOTTOM, LEFT, RIGHT } = Astal.WindowAnchor
+      const { cal, goToday } = makeCalendar()
+      cal.set_valign(Gtk.Align.CENTER)
+      // the date text changes once a day: jump the calendar to the new today
+      bigDate.subscribe(() => goToday())
+      return (
+        <window
+          className="Dashboard"
+          namespace="ags-dashboard"
+          gdkmonitor={gdkmonitor}
+          application={App}
+          layer={Astal.Layer.BOTTOM}
+          exclusivity={Astal.Exclusivity.IGNORE}
+          keymode={Astal.Keymode.NONE}
+          anchor={TOP | BOTTOM | LEFT | RIGHT}
+          marginTop={BAR_OFFSET}
+        >
+          <box vertical homogeneous className="dash">
+            <box halign={Gtk.Align.CENTER} valign={Gtk.Align.CENTER}>
+              <box vertical className="dash-card dash-clockbox">
+                <label className="dash-clock" label={bind(bigTime)} />
+                <label className="dash-date" label={bind(bigDate)} />
+              </box>
+            </box>
+
+            <box halign={Gtk.Align.CENTER} valign={Gtk.Align.CENTER} spacing={20}>
+              <box className="dash-card">{cal}</box>
+
+              <box vertical className="dash-card dash-stats">
+                <box vertical vexpand valign={Gtk.Align.CENTER}>
+                  {StatRow(I.cpu, "CPU", bind(cpu), bind(cpu).as((v) => Math.round(v * 100) + "%"))}
+                  <box vertical visible={bind(gpuAvail)}>
+                    {StatRow(I.gpu, "GPU", bind(gpu), bind(gpu).as((v) => Math.round(v * 100) + "%"))}
+                  </box>
+                  {bind(disks).as((list) =>
+                    list.map((d) => StatRow(I.disk, d.label, d.frac, d.text)),
+                  )}
+                </box>
+              </box>
+
+              <box vertical className="dash-card dash-power" spacing={10}>
+                <box homogeneous vexpand spacing={10}>
+                  {PowerTile("lock", I.lock, "Lock", ["swaylock", "-f"], false)}
+                  {PowerTile("suspend", I.suspend, "Suspend", ["systemctl", "suspend"], false)}
+                </box>
+                <box homogeneous vexpand spacing={10}>
+                  {PowerTile("logout", I.logout, "Log out", ["niri", "msg", "action", "quit", "--skip-confirmation"], true)}
+                  {PowerTile("reboot", I.reboot, "Reboot", ["systemctl", "reboot"], true)}
+                </box>
+                <box homogeneous vexpand>
+                  {PowerTile("poweroff", I.power, "Shut down", ["systemctl", "poweroff"], true, "accent")}
+                </box>
+              </box>
+            </box>
+          </box>
+        </window>
+      )
+    }
+
     // ---------- bar ----------
     function Bar(gdkmonitor: Gdk.Monitor) {
       const { TOP, LEFT, RIGHT } = Astal.WindowAnchor
@@ -835,7 +1101,10 @@ let
       css: style,
       main() {
         startNiri()
-        App.get_monitors().map(Bar)
+        const mons = App.get_monitors()
+        mons.map(Bar)
+        startStats()
+        Dashboard(mons[0])
         Scrim()
         MenuWindow("calendar", <CalendarMenu />, true)
         MenuWindow("audio", <AudioMenu />)
@@ -853,7 +1122,7 @@ let
       font-size: 13px;
     }
 
-    window.Bar, window.Menu, window.Scrim {
+    window.Bar, window.Menu, window.Scrim, window.Dashboard {
       background: transparent;
       color: ${c.fg};
     }
@@ -950,11 +1219,15 @@ let
     }
 
     .fm-box.power { min-width: 240px; }
+    .fm-box.audio { min-width: 360px; }
 
     .fm-head, .fm-row { margin-bottom: 6px; }
     .fm-title { color: ${c.leaf}; font-weight: bold; font-size: 14px; }
     .fm-sub { color: ${c.dim}; margin-top: 8px; margin-bottom: 2px; }
     .fm-val { color: ${c.dim}; margin-left: 10px; }
+    .fm-stream { margin-top: 6px; }
+    .fm-app { color: ${c.fg}; }
+    .fm-level { margin: 2px 6px 6px 6px; }
 
     .fm-btn {
       background: ${c.pill};
@@ -1001,6 +1274,18 @@ let
       margin: -5px;
     }
 
+    levelbar trough { min-height: 6px; }
+    levelbar block.empty {
+      background: ${c.pill};
+      border-radius: 4px;
+      min-height: 6px;
+    }
+    levelbar block.filled {
+      background: ${c.moss};
+      border-radius: 4px;
+      min-height: 6px;
+    }
+
     entry {
       background: ${c.pill};
       color: ${c.fg};
@@ -1022,6 +1307,8 @@ let
       min-height: 18px;
       margin: 0;
     }
+
+    /* calendar */
     calendar {
       background: transparent;
       color: ${c.fg};
@@ -1042,20 +1329,57 @@ let
       color: #0a1811;
       border-radius: 6px;
     }
-    .fm-box.audio { min-width: 360px; }
-    .fm-stream { margin-top: 6px; }
-    .fm-app { color: ${c.fg}; }
-    .fm-level { margin: 2px 6px 6px 6px; }
-    levelbar trough { min-height: 6px; }
-    levelbar block.empty {
-      background: ${c.pill};
-      border-radius: 4px;
-      min-height: 6px;
+
+    /* dashboard */
+    .dash { padding: 24px 40px; }
+
+    .dash-clock {
+      font-size: 120px;
+      font-weight: bold;
+      color: ${c.leaf};
     }
-    levelbar block.filled {
-      background: ${c.moss};
-      border-radius: 4px;
-      min-height: 6px;
+    .dash-date {
+      font-size: 22px;
+      color: ${c.dim};
+    }
+
+    .dash-card {
+      background: ${c.bg};
+      border: 1px solid ${c.border};
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .dash-card calendar { font-size: 15px; }
+
+    .dash-stats { min-width: 340px; }
+    .dash-stat { margin-bottom: 12px; }
+    .dash-stat .icon {
+      color: ${c.moss};
+      font-size: 15px;
+      margin-right: 10px;
+    }
+    .dash-stat-name { color: ${c.fg}; }
+    .dash-bar { margin-top: 4px; }
+    .dash-bar block.empty, .dash-bar block.filled { min-height: 8px; }
+
+    .dash-clockbox { padding: 20px 56px; }
+
+    .dash-power { min-width: 150px; }
+    .dash-btn {
+      background: ${c.pill};
+      color: ${c.moss};
+      border: none;
+      box-shadow: none;
+      border-radius: 14px;
+      min-width: 60px;
+      min-height: 52px;
+    }
+    .dash-btn label { font-size: 24px; }
+    .dash-btn.accent { color: ${c.red}; }
+    .dash-btn:hover { background: rgba(127, 176, 105, 0.25); }
+    .dash-btn.danger {
+      background: rgba(201, 82, 74, 0.25);
+      color: ${c.red};
     }
   '';
 
@@ -1077,6 +1401,7 @@ in
   home.packages = [
     pkgs.nerd-fonts.jetbrains-mono
     pkgs.swaylock
+    pkgs.pulseaudio   # only for the parec tool (mic meter), no daemon is started
   ];
   fonts.fontconfig.enable = true;
 

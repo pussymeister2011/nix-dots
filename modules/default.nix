@@ -3,7 +3,7 @@
     ./zsh.nix
     ./fuzzel.nix
     ./fastfetch.nix
-    ./ags-1.nix
+    ./ags.nix
     ./niri.nix
     ./osd.nix
     ./firefox.nix
