@@ -11,6 +11,7 @@
 		dconf
 		telegram-desktop
 		swaybg
+		pulseaudio
 		nerd-fonts.jetbrains-mono
 	];
 	

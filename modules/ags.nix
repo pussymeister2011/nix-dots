@@ -16,7 +16,7 @@ let
 
   appTsx = ''
     import { App, Astal, Gtk, Gdk } from "astal/gtk3"
-    import { Variable, bind, GLib, timeout } from "astal"
+    import { Variable, bind, GLib, timeout, interval } from "astal"
     import { subprocess, execAsync } from "astal/process"
     import Network from "gi://AstalNetwork"
     import Wp from "gi://AstalWp"
@@ -35,6 +35,8 @@ let
       wifiOff: "\u{f05aa}",
       ethernet: "\u{f0200}",
       lock: "\uf023",
+      mic: "\uf130",
+      micOff: "\uf131",
       kbd: "\uf11c",
       sun: "\uf185",
       power: "\uf011",
@@ -289,13 +291,95 @@ let
       )
     }
 
+    // ---------- mic level meter (only runs while the sound menu is open) ----------
+    const micLevel = Variable<number>(0)
+    let micProc: any = null
+    let micTimer: any = null
+    let peakAcc = 0
+
+    function startMicMeter() {
+      if (micProc) return
+      peakAcc = 0
+      micProc = subprocess(
+        ["sh", "-c", "parec --format=s16le --rate=8000 --channels=1 --latency-msec=50 | od -An -t d2 -w32 -v"],
+        (line: string) => {
+          for (const n of line.trim().split(/\s+/))
+            peakAcc = Math.max(peakAcc, Math.abs(Number(n) || 0))
+        },
+        (err: string) => console.error(err),
+      )
+      micTimer = interval(80, () => {
+        micLevel.set(Math.min(1, peakAcc / 8000))
+        peakAcc = 0
+      })
+    }
+
+    function stopMicMeter() {
+      if (micTimer) { micTimer.cancel(); micTimer = null }
+      if (micProc) { micProc.kill(); micProc = null }
+      execAsync(["pkill", "-f", "parec --format=s16le --rate=8000"]).catch(() => {})
+      micLevel.set(0)
+    }
+
+    openMenu.subscribe((m) => (m === "audio" ? startMicMeter() : stopMicMeter()))
+
     // ---------- dropdown: sound ----------
+    function DeviceList(list: any[]) {
+      return list.map((ep) => (
+        <button
+          className={bind(ep, "isDefault").as((d) => (d ? "fm-item active" : "fm-item"))}
+          onClicked={() => (ep.isDefault = true)}
+        >
+          <box>
+            <label
+              className="icon"
+              label={bind(ep, "isDefault").as((d) => (d ? I.check : " "))}
+            />
+            <label truncate xalign={0} hexpand maxWidthChars={34} label={ep.description || ep.name} />
+          </box>
+        </button>
+      ))
+    }
+
+    function StreamRow(s: any) {
+      return (
+        <box vertical className="fm-stream">
+          <box>
+            <label
+              className="fm-app"
+              truncate
+              hexpand
+              xalign={0}
+              maxWidthChars={28}
+              label={s.description || s.name || "App"}
+            />
+            <label
+              className="fm-val"
+              label={bind(s, "volume").as((v) => Math.round(v * 100) + "%")}
+            />
+          </box>
+          <box>
+            <button className="fm-btn" onClicked={() => (s.mute = !s.mute)}>
+              <label label={bind(s, "mute").as((m) => (m ? I.volMute : I.volHigh))} />
+            </button>
+            <slider
+              hexpand
+              value={bind(s, "volume")}
+              onDragged={({ value }) => (s.volume = value)}
+            />
+          </box>
+        </box>
+      )
+    }
+
     function AudioMenu() {
       const audio = Wp.get_default()!.audio
       const speaker = audio.defaultSpeaker
       return (
-        <box vertical className="fm-box">
+        <box vertical className="fm-box audio">
           <label className="fm-title" xalign={0} label="Sound" />
+
+          <label className="fm-sub" xalign={0} label="Output" />
           <box className="fm-row">
             <button className="fm-btn" onClicked={() => (speaker.mute = !speaker.mute)}>
               <label label={bind(speaker, "mute").as((m) => (m ? I.volMute : I.volHigh))} />
@@ -310,29 +394,47 @@ let
               label={bind(speaker, "volume").as((v) => Math.round(v * 100) + "%")}
             />
           </box>
-          <label className="fm-sub" xalign={0} label="Output device" />
+          <box vertical>{bind(audio, "speakers").as(DeviceList)}</box>
+
+          <label className="fm-sub" xalign={0} label="Input" />
+          {bind(audio, "defaultMicrophone").as((mic) =>
+            mic ? (
+              <box vertical>
+                <box className="fm-row">
+                  <button className="fm-btn" onClicked={() => (mic.mute = !mic.mute)}>
+                    <label label={bind(mic, "mute").as((m) => (m ? I.micOff : I.mic))} />
+                  </button>
+                  <slider
+                    hexpand
+                    value={bind(mic, "volume")}
+                    onDragged={({ value }) => (mic.volume = value)}
+                  />
+                  <label
+                    className="fm-val"
+                    label={bind(mic, "volume").as((v) => Math.round(v * 100) + "%")}
+                  />
+                </box>
+                <levelbar className="fm-level" value={bind(micLevel)} />
+              </box>
+            ) : (
+              <label className="fm-sub" xalign={0} label="No microphone found" />
+            ),
+          )}
+          <box vertical>{bind(audio, "microphones").as(DeviceList)}</box>
+
+          <label
+            className="fm-sub"
+            xalign={0}
+            label="Applications"
+            visible={bind(audio, "streams").as((s) => s.length > 0)}
+          />
           <box vertical>
-            {bind(audio, "speakers").as((list) =>
-              list.map((ep) => (
-                <button
-                  className={bind(ep, "isDefault").as((d) => (d ? "fm-item active" : "fm-item"))}
-                  onClicked={() => (ep.isDefault = true)}
-                >
-                  <box>
-                    <label
-                      className="icon"
-                      label={bind(ep, "isDefault").as((d) => (d ? I.check : " "))}
-                    />
-                    <label truncate xalign={0} hexpand maxWidthChars={32} label={ep.description || ep.name} />
-                  </box>
-                </button>
-              )),
-            )}
+            {bind(audio, "streams").as((list) => list.slice(0, 6).map(StreamRow))}
           </box>
         </box>
       )
     }
-
+    
     // ---------- dropdown: wifi ----------
     const wifiPw = Variable<string>("")   // ssid waiting for a password
     const wifiMsg = Variable<string>("")
@@ -939,6 +1041,21 @@ let
       background: ${c.moss};
       color: #0a1811;
       border-radius: 6px;
+    }
+    .fm-box.audio { min-width: 360px; }
+    .fm-stream { margin-top: 6px; }
+    .fm-app { color: ${c.fg}; }
+    .fm-level { margin: 2px 6px 6px 6px; }
+    levelbar trough { min-height: 6px; }
+    levelbar block.empty {
+      background: ${c.pill};
+      border-radius: 4px;
+      min-height: 6px;
+    }
+    levelbar block.filled {
+      background: ${c.moss};
+      border-radius: 4px;
+      min-height: 6px;
     }
   '';
 
