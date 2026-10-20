@@ -18,6 +18,55 @@ in
 {
   # volume / brightness popup
   services.swayosd.enable = true;
+  xdg.configFile."swayosd/style.css".text = ''
+    window#osd {
+      padding: 12px 20px;
+      border-radius: 16px;
+      border: 1px solid rgba(127, 176, 105, 0.25);
+      background: rgba(10, 24, 17, 0.92);
+    }
+
+    window#osd #container {
+      margin: 14px;
+    }
+
+    window#osd image {
+      color: #7fb069;
+    }
+
+    window#osd label {
+      color: #cfe8d5;
+      font-family: "JetBrainsMono Nerd Font", monospace;
+      font-weight: bold;
+    }
+
+    window#osd progressbar:disabled,
+    window#osd image:disabled {
+      opacity: 0.5;
+    }
+
+    window#osd progressbar {
+      min-height: 6px;
+      border-radius: 999px;
+      background: transparent;
+      border: none;
+    }
+
+    window#osd trough {
+      min-height: inherit;
+      border-radius: inherit;
+      border: none;
+      background: rgba(31, 61, 43, 0.9);
+    }
+
+    window#osd progress {
+      min-height: inherit;
+      border-radius: inherit;
+      border: none;
+      background: #7fb069;
+    }
+  '';
+
 
   # notification daemon, green to match the bar
   services.mako = {
